@@ -1,4 +1,4 @@
-import { format, parseISO, isToday, startOfDay, endOfDay, addDays, subDays } from 'date-fns'
+import { format, startOfDay, endOfDay, addDays, subDays } from 'date-fns'
 
 // Work hours configuration
 const DEFAULT_WORK_START = process.env.DEFAULT_WORK_START || '09:00'
@@ -44,11 +44,25 @@ export function isLateCheckIn(checkInTime: Date): boolean {
 }
 
 /**
+ * Check if arrival is late (alias for isLateCheckIn)
+ */
+export function isLateArrival(checkInTime: Date): boolean {
+  return isLateCheckIn(checkInTime)
+}
+
+/**
  * Check if check-out time is early
  */
 export function isEarlyCheckOut(checkOutTime: Date): boolean {
   const workEnd = parseTimeToday(DEFAULT_WORK_END)
   return checkOutTime < workEnd
+}
+
+/**
+ * Check if departure is early (alias for isEarlyCheckOut)
+ */
+export function isEarlyDeparture(checkOutTime: Date): boolean {
+  return isEarlyCheckOut(checkOutTime)
 }
 
 /**
@@ -87,7 +101,9 @@ export function getMinutesUntilWorkStarts(date?: Date): number {
   const now = date || new Date()
   const workStart = parseTimeToday(DEFAULT_WORK_START)
   
-  if (now >= workStart) return 0
+  if (now >= workStart) {
+    return 0
+  }
   
   return Math.ceil((workStart.getTime() - now.getTime()) / (1000 * 60))
 }
@@ -99,7 +115,9 @@ export function getMinutesUntilWorkEnds(date?: Date): number {
   const now = date || new Date()
   const workEnd = parseTimeToday(DEFAULT_WORK_END)
   
-  if (now >= workEnd) return 0
+  if (now >= workEnd) {
+    return 0
+  }
   
   return Math.ceil((workEnd.getTime() - now.getTime()) / (1000 * 60))
 }
@@ -110,7 +128,9 @@ export function getMinutesUntilWorkEnds(date?: Date): number {
 export function getLatenessInMinutes(checkInTime: Date): number {
   const workStart = parseTimeToday(DEFAULT_WORK_START)
   
-  if (checkInTime <= workStart) return 0
+  if (checkInTime <= workStart) {
+    return 0
+  }
   
   return Math.ceil((checkInTime.getTime() - workStart.getTime()) / (1000 * 60))
 }
@@ -121,7 +141,9 @@ export function getLatenessInMinutes(checkInTime: Date): number {
 export function getEarlyDepartureInMinutes(checkOutTime: Date): number {
   const workEnd = parseTimeToday(DEFAULT_WORK_END)
   
-  if (checkOutTime >= workEnd) return 0
+  if (checkOutTime >= workEnd) {
+    return 0
+  }
   
   return Math.ceil((workEnd.getTime() - checkOutTime.getTime()) / (1000 * 60))
 }
@@ -249,11 +271,21 @@ export function getTimeAgo(date: Date): string {
   const diffHours = Math.floor(diffMs / (1000 * 60 * 60))
   const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24))
   
-  if (diffMinutes < 1) return 'Just now'
-  if (diffMinutes < 60) return `${diffMinutes} minute${diffMinutes === 1 ? '' : 's'} ago`
-  if (diffHours < 24) return `${diffHours} hour${diffHours === 1 ? '' : 's'} ago`
-  if (diffDays === 1) return 'Yesterday'
-  if (diffDays < 7) return `${diffDays} days ago`
+  if (diffMinutes < 1) {
+    return 'Just now'
+  }
+  if (diffMinutes < 60) {
+    return `${diffMinutes} minute${diffMinutes === 1 ? '' : 's'} ago`
+  }
+  if (diffHours < 24) {
+    return `${diffHours} hour${diffHours === 1 ? '' : 's'} ago`
+  }
+  if (diffDays === 1) {
+    return 'Yesterday'
+  }
+  if (diffDays < 7) {
+    return `${diffDays} days ago`
+  }
   
   return formatDateForDisplay(date)
 }

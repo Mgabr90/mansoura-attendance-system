@@ -11,6 +11,21 @@ interface CreateEmployeeRequest {
   isActive?: boolean
 }
 
+interface UpdateEmployeeRequest {
+  id: string | number
+  telegramId?: string
+  firstName?: string
+  lastName?: string
+  phoneNumber?: string
+  department?: string
+  position?: string
+  isActive?: boolean
+}
+
+interface _DeleteEmployeeRequest {
+  id: string | number
+}
+
 export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url)
@@ -20,7 +35,7 @@ export async function GET(request: NextRequest) {
     const page = parseInt(searchParams.get('page') || '1')
     const limit = parseInt(searchParams.get('limit') || '50')
 
-    let whereClause: any = {}
+    const whereClause: Record<string, unknown> = {}
 
     if (telegramId) {
       whereClause.telegramId = telegramId
@@ -58,7 +73,7 @@ export async function GET(request: NextRequest) {
           }
         },
         orderBy: {
-          createdAt: 'desc'
+          registeredAt: 'desc'
         },
         skip,
         take: limit
@@ -92,7 +107,7 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   try {
-    const body: CreateEmployeeRequest = await request.json()
+    const body = await request.json() as CreateEmployeeRequest
     const { 
       telegramId, 
       firstName, 
@@ -132,18 +147,20 @@ export async function POST(request: NextRequest) {
         phoneNumber,
         department,
         position,
-        isActive,
-        registrationDate: new Date()
+        isActive
       }
     })
 
     // Log the activity
     await prisma.serverActivity.create({
       data: {
-        action: 'EMPLOYEE_CREATED',
-        details: `New employee created: ${firstName} ${lastName} (${telegramId})`,
-        ipAddress: request.ip || 'unknown',
-        userAgent: request.headers.get('user-agent') || 'unknown'
+        type: 'EMPLOYEE_CREATED',
+        message: `New employee created: ${firstName} ${lastName || ''} (${telegramId})`,
+        metadata: {
+          employeeId: employee.id,
+          ipAddress: request.headers.get('x-forwarded-for') || request.headers.get('x-real-ip') || 'unknown',
+          userAgent: request.headers.get('user-agent') || 'unknown'
+        }
       }
     })
 
@@ -159,7 +176,7 @@ export async function POST(request: NextRequest) {
 
 export async function PUT(request: NextRequest) {
   try {
-    const body = await request.json()
+    const body = await request.json() as UpdateEmployeeRequest
     const { id, ...updateData } = body
 
     if (!id) {
@@ -169,9 +186,17 @@ export async function PUT(request: NextRequest) {
       )
     }
 
+    const employeeId = parseInt(id as string)
+    if (isNaN(employeeId)) {
+      return NextResponse.json(
+        { error: 'Invalid employee ID' },
+        { status: 400 }
+      )
+    }
+
     // Check if employee exists
     const existingEmployee = await prisma.employee.findUnique({
-      where: { id }
+      where: { id: employeeId }
     })
 
     if (!existingEmployee) {
@@ -183,7 +208,7 @@ export async function PUT(request: NextRequest) {
 
     // Update employee
     const updatedEmployee = await prisma.employee.update({
-      where: { id },
+      where: { id: employeeId },
       data: {
         ...updateData,
         updatedAt: new Date()
@@ -193,10 +218,13 @@ export async function PUT(request: NextRequest) {
     // Log the activity
     await prisma.serverActivity.create({
       data: {
-        action: 'EMPLOYEE_UPDATED',
-        details: `Employee updated: ${updatedEmployee.firstName} ${updatedEmployee.lastName}`,
-        ipAddress: request.ip || 'unknown',
-        userAgent: request.headers.get('user-agent') || 'unknown'
+        type: 'EMPLOYEE_UPDATED',
+        message: `Employee updated: ${updatedEmployee.firstName} ${updatedEmployee.lastName || ''}`,
+        metadata: {
+          employeeId,
+          ipAddress: request.headers.get('x-forwarded-for') || request.headers.get('x-real-ip') || 'unknown',
+          userAgent: request.headers.get('user-agent') || 'unknown'
+        }
       }
     })
 
@@ -225,9 +253,17 @@ export async function DELETE(request: NextRequest) {
       )
     }
 
+    const employeeId = parseInt(id)
+    if (isNaN(employeeId)) {
+      return NextResponse.json(
+        { error: 'Invalid employee ID' },
+        { status: 400 }
+      )
+    }
+
     // Check if employee exists
     const existingEmployee = await prisma.employee.findUnique({
-      where: { id }
+      where: { id: employeeId }
     })
 
     if (!existingEmployee) {
@@ -238,21 +274,23 @@ export async function DELETE(request: NextRequest) {
     }
 
     // Instead of hard delete, mark as inactive
-    const updatedEmployee = await prisma.employee.update({
-      where: { id },
+    await prisma.employee.update({
+      where: { id: employeeId },
       data: {
-        isActive: false,
-        updatedAt: new Date()
+        isActive: false
       }
     })
 
     // Log the activity
     await prisma.serverActivity.create({
       data: {
-        action: 'EMPLOYEE_DEACTIVATED',
-        details: `Employee deactivated: ${existingEmployee.firstName} ${existingEmployee.lastName}`,
-        ipAddress: request.ip || 'unknown',
-        userAgent: request.headers.get('user-agent') || 'unknown'
+        type: 'EMPLOYEE_DEACTIVATED',
+        message: `Employee deactivated: ${existingEmployee.firstName} ${existingEmployee.lastName || ''}`,
+        metadata: {
+          employeeId,
+          ipAddress: request.headers.get('x-forwarded-for') || request.headers.get('x-real-ip') || 'unknown',
+          userAgent: request.headers.get('user-agent') || 'unknown'
+        }
       }
     })
 

@@ -15,8 +15,8 @@ export async function GET(request: NextRequest) {
     const reportType = searchParams.get('type') || 'daily'
     const startDate = searchParams.get('startDate') ? new Date(searchParams.get('startDate')!) : new Date()
     const endDate = searchParams.get('endDate') ? new Date(searchParams.get('endDate')!) : new Date()
-    const employeeId = searchParams.get('employeeId')
-    const department = searchParams.get('department')
+    const employeeId = searchParams.get('employeeId') || undefined
+    const department = searchParams.get('department') || undefined
     const format = searchParams.get('format') || 'json'
 
     // Set proper time boundaries
@@ -75,7 +75,8 @@ export async function GET(request: NextRequest) {
 
   } catch (error) {
     console.error('Reports API error:', error)
-    await logServerActivity('report_error', error.message)
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error'
+    await logServerActivity('report_error', errorMessage)
     return NextResponse.json({
       success: false,
       error: 'Failed to generate report'
@@ -89,7 +90,7 @@ export async function GET(request: NextRequest) {
 async function generateDailyReport(startDate: Date, endDate: Date, employeeId?: string, department?: string) {
   const whereClause: Prisma.AttendanceRecordWhereInput = {
     date: { gte: startDate, lte: endDate },
-    ...(employeeId && { employeeId }),
+    ...(employeeId && { employeeId: parseInt(employeeId) }),
     ...(department && { employee: { department } })
   }
 
@@ -125,7 +126,7 @@ async function generateDailyReport(startDate: Date, endDate: Date, employeeId?: 
   ])
 
   // Calculate daily statistics
-  const dailyStats = {}
+  const dailyStats: Record<string, any> = {}
   
   records.forEach(record => {
     const dateKey = record.date.toISOString().split('T')[0]
@@ -151,9 +152,9 @@ async function generateDailyReport(startDate: Date, endDate: Date, employeeId?: 
   // Calculate average working hours for each day
   Object.keys(dailyStats).forEach(dateKey => {
     const dayRecords = dailyStats[dateKey].records
-    const completedRecords = dayRecords.filter(r => r.workingHours !== null)
+    const completedRecords = dayRecords.filter((r: any) => r.workingHours !== null)
     dailyStats[dateKey].averageHours = completedRecords.length > 0
-      ? completedRecords.reduce((sum, r) => sum + (r.workingHours || 0), 0) / completedRecords.length
+      ? completedRecords.reduce((sum: number, r: any) => sum + (r.workingHours || 0), 0) / completedRecords.length
       : 0
   })
 
@@ -183,7 +184,7 @@ async function generateWeeklyReport(startDate: Date, endDate: Date, department?:
   })
 
   // Group by weeks
-  const weeklyData = {}
+  const weeklyData: Record<string, any> = {}
   records.forEach(record => {
     const weekStart = getWeekStart(record.date)
     const weekKey = weekStart.toISOString().split('T')[0]
@@ -238,7 +239,7 @@ async function generateMonthlyReport(startDate: Date, endDate: Date, department?
   ])
 
   // Group by months
-  const monthlyData = {}
+  const monthlyData: Record<string, any> = {}
   records.forEach(record => {
     const monthKey = `${record.date.getFullYear()}-${(record.date.getMonth() + 1).toString().padStart(2, '0')}`
     
@@ -281,14 +282,14 @@ async function generateMonthlyReport(startDate: Date, endDate: Date, department?
 async function generateEmployeeReport(employeeId: string, startDate: Date, endDate: Date) {
   const [employee, records] = await Promise.all([
     prisma.employee.findUnique({
-      where: { id: employeeId },
+      where: { id: parseInt(employeeId) },
       include: {
         _count: { select: { attendanceRecords: true } }
       }
     }),
     prisma.attendanceRecord.findMany({
       where: {
-        employeeId,
+        employeeId: parseInt(employeeId),
         date: { gte: startDate, lte: endDate }
       },
       orderBy: { date: 'desc' }
@@ -338,7 +339,7 @@ async function generateDepartmentReport(department: string, startDate: Date, end
   ])
 
   // Group by employees
-  const employeeStats = {}
+  const employeeStats: Record<string, any> = {}
   employees.forEach(emp => {
     employeeStats[emp.id] = {
       employee: emp,
@@ -416,7 +417,7 @@ async function generateLateArrivalsReport(startDate: Date, endDate: Date, depart
   })
 
   // Group by employee
-  const employeeLateStats = {}
+  const employeeLateStats: Record<string, any> = {}
   records.forEach(record => {
     if (!employeeLateStats[record.employeeId]) {
       employeeLateStats[record.employeeId] = {

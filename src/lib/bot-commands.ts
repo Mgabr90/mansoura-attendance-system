@@ -11,7 +11,7 @@ import type { Employee, AttendanceRecord } from '@prisma/client'
 
 interface BotContext extends Context {
   employee?: Employee
-  state?: any
+  state: any
 }
 
 export class BotCommands {
@@ -167,7 +167,7 @@ export class BotCommands {
     }
 
     // Get current notification settings
-    const settings = await prisma.systemSettings.findFirst({
+    const settings = await prisma.settings.findFirst({
       where: { key: `notifications_${ctx.employee.telegramId}` }
     })
 
@@ -237,7 +237,7 @@ export class BotCommands {
     }
 
     // Get work schedule settings
-    const scheduleSettings = await prisma.systemSettings.findFirst({
+    const scheduleSettings = await prisma.settings.findFirst({
       where: { key: 'work_schedule' }
     })
 
@@ -315,11 +315,13 @@ export class BotCommands {
     await prisma.conversationState.upsert({
       where: { telegramId },
       update: {
+        state: 'active',
         data: JSON.stringify(state),
         expiresAt: new Date(Date.now() + 30 * 60 * 1000) // 30 minutes
       },
       create: {
         telegramId,
+        state: 'active',
         data: JSON.stringify(state),
         expiresAt: new Date(Date.now() + 30 * 60 * 1000)
       }

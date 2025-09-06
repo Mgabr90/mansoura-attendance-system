@@ -62,7 +62,7 @@ export function generateId(prefix = 'id'): string {
  * Safely parses JSON with error handling
  * Returns null if parsing fails
  */
-export function safeJsonParse<T = any>(json: string): T | null {
+export function safeJsonParse<T = unknown>(json: string): T | null {
   try {
     return JSON.parse(json) as T
   } catch {
@@ -103,7 +103,9 @@ export function stableSort<T>(
   
   stabilizedThis.sort((a, b) => {
     const order = compareFn(a[0], b[0])
-    if (order !== 0) return order
+    if (order !== 0) {
+      return order
+    }
     return a[1] - b[1]
   })
   
@@ -115,7 +117,9 @@ export function stableSort<T>(
  * Useful for display formatting
  */
 export function capitalize(str: string): string {
-  if (!str) return ''
+  if (!str) {
+    return ''
+  }
   return str.charAt(0).toUpperCase() + str.slice(1).toLowerCase()
 }
 
@@ -134,7 +138,7 @@ export function toKebabCase(str: string): string {
  * Useful for converting API responses to JS conventions
  */
 export function toCamelCase(str: string): string {
-  return str.replace(/-([a-z])/g, (_, letter) => letter.toUpperCase())
+  return str.replace(/-([a-z])/g, (_, letter: string) => letter.toUpperCase())
 }
 
 /**

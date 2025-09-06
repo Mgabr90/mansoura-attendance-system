@@ -120,7 +120,7 @@ export class HealthMonitor {
         slowQueries = await prisma.serverActivity.count({
           where: {
             type: 'slow_query',
-            createdAt: { gte: oneHourAgo }
+            timestamp: { gte: oneHourAgo }
           }
         })
 
@@ -217,7 +217,7 @@ export class HealthMonitor {
     const responseTimes = await prisma.serverActivity.findMany({
       where: {
         type: 'api_request',
-        createdAt: { gte: oneHourAgo }
+        timestamp: { gte: oneHourAgo }
       },
       select: { metadata: true }
     })
@@ -246,7 +246,7 @@ export class HealthMonitor {
     const errorCount = await prisma.serverActivity.count({
       where: {
         type: 'error',
-        createdAt: { gte: oneHourAgo }
+        timestamp: { gte: oneHourAgo }
       }
     })
 
@@ -282,7 +282,7 @@ export class HealthMonitor {
       const recentActivity = await prisma.serverActivity.findFirst({
         where: {
           type: { startsWith: 'bot_' },
-          createdAt: { gte: fiveMinutesAgo }
+          timestamp: { gte: fiveMinutesAgo }
         }
       })
 
@@ -316,7 +316,7 @@ export class HealthMonitor {
       const recentCronActivity = await prisma.serverActivity.findFirst({
         where: {
           type: 'cron_job',
-          createdAt: { gte: oneHourAgo }
+          timestamp: { gte: oneHourAgo }
         }
       })
 
@@ -346,7 +346,7 @@ export class HealthMonitor {
       const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000)
       const recentNotifications = await prisma.notificationLog.findFirst({
         where: {
-          createdAt: { gte: oneHourAgo }
+          sentAt: { gte: oneHourAgo }
         }
       })
 
@@ -448,10 +448,10 @@ export class HealthMonitor {
       // Check for backup activity in server logs
       const backup = await prisma.serverActivity.findFirst({
         where: { type: 'database_backup' },
-        orderBy: { createdAt: 'desc' }
+        orderBy: { timestamp: 'desc' }
       })
       
-      return backup?.createdAt
+      return backup?.timestamp
     } catch {
       return undefined
     }
@@ -491,7 +491,7 @@ export class HealthMonitor {
         data: {
           type: `metric_${type}`,
           message: `${type}: ${value}`,
-          metadata: metadata ? JSON.stringify(metadata) : null
+          metadata: metadata ? JSON.stringify(metadata) : undefined
         }
       })
     } catch (error) {

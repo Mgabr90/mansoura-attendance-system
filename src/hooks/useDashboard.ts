@@ -48,21 +48,20 @@ const useDashboard = (): UseDashboardReturn => {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   
-  const { fetchData } = useApi()
+  const { get } = useApi()
 
   const fetchDashboardStats = useCallback(async (period: 'today' | 'week' | 'month' = 'today') => {
     try {
       setLoading(true)
       setError(null)
 
-      const response = await fetchData(`/api/reports/dashboard?period=${period}`)
+      const response = await get(`/api/reports/dashboard?period=${period}`)
       
-      if (!response.ok) {
-        throw new Error('Failed to fetch dashboard statistics')
+      if (!response.success) {
+        throw new Error(response.error || 'Failed to fetch dashboard statistics')
       }
 
-      const data = await response.json()
-      setStats(data.stats)
+      setStats(response.data?.stats || response.data)
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'Failed to load dashboard'
       setError(errorMessage)
@@ -70,7 +69,7 @@ const useDashboard = (): UseDashboardReturn => {
     } finally {
       setLoading(false)
     }
-  }, [fetchData])
+  }, [get])
 
   const refreshStats = useCallback(async () => {
     await fetchDashboardStats()
@@ -105,4 +104,5 @@ const useDashboard = (): UseDashboardReturn => {
   }
 }
 
+export { useDashboard }
 export default useDashboard 

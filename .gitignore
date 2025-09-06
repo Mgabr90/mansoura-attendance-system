@@ -65,9 +65,9 @@ jspm_packages/
 # Yarn Integrity file
 .yarn-integrity
 
-# Test results
-test-results.txt
-modular-e2e-report.json
+# Test results and reports
+reports/
+*.tsbuildinfo
 
 # Temporary files
 *.tmp

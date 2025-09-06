@@ -38,5 +38,4 @@ export { default as AttendanceChart } from './charts/AttendanceChart'
 export { default as DepartmentChart } from './charts/DepartmentChart'
 export { default as TrendChart } from './charts/TrendChart'
 
-// Export types
-export * from './types' 
+ 

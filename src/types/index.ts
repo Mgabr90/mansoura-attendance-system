@@ -16,6 +16,15 @@ export type {
   SettingType,
 } from '@prisma/client'
 
+// Import Prisma types for use in interfaces
+import type {
+  Employee as PrismaEmployee,
+  AttendanceRecord as PrismaAttendanceRecord,
+  ConversationState as PrismaConversationState,
+  AdminRole as PrismaAdminRole,
+  AttendanceStatus as PrismaAttendanceStatus
+} from '@prisma/client'
+
 // Extended types with relations
 export type EmployeeWithAttendance = Prisma.EmployeeGetPayload<{
   include: {
@@ -62,7 +71,7 @@ export interface BotContext {
   user: TelegramUser
   location?: TelegramLocation
   contact?: TelegramContact
-  state?: ConversationState
+  state?: PrismaConversationState
 }
 
 // Location types
@@ -81,19 +90,19 @@ export interface LocationValidation {
 export interface AuthUser {
   id: number
   username: string
-  role: AdminRole
+  role: PrismaAdminRole
 }
 
 export interface JWTPayload {
   userId: number
   username: string
-  role: AdminRole
+  role: PrismaAdminRole
   iat: number
   exp: number
 }
 
 // API Response types
-export interface ApiResponse<T = any> {
+export interface ApiResponse<T = unknown> {
   success: boolean
   data?: T
   error?: string
@@ -178,8 +187,8 @@ export interface AppSettings {
 
 // Report types
 export interface AttendanceReport {
-  employee: Pick<Employee, 'id' | 'firstName' | 'lastName' | 'department'>
-  records: AttendanceRecord[]
+  employee: Pick<PrismaEmployee, 'id' | 'firstName' | 'lastName' | 'department'>
+  records: PrismaAttendanceRecord[]
   stats: {
     totalDays: number
     presentDays: number
@@ -193,7 +202,7 @@ export interface DailyReport {
   date: Date
   totalEmployees: number
   present: AttendanceRecordWithEmployee[]
-  absent: Employee[]
+  absent: PrismaEmployee[]
   late: AttendanceRecordWithEmployee[]
   summary: {
     attendanceRate: number
@@ -208,7 +217,7 @@ export interface AttendanceFilters {
   endDate?: Date
   employeeId?: number
   department?: string
-  status?: AttendanceStatus
+  status?: PrismaAttendanceStatus
 }
 
 export interface EmployeeFilters {
@@ -220,34 +229,34 @@ export interface EmployeeFilters {
 // Webhook types
 export interface TelegramWebhook {
   update_id: number
-  message?: any
-  edited_message?: any
-  channel_post?: any
-  edited_channel_post?: any
-  inline_query?: any
-  chosen_inline_result?: any
-  callback_query?: any
+  message?: unknown
+  edited_message?: unknown
+  channel_post?: unknown
+  edited_channel_post?: unknown
+  inline_query?: unknown
+  chosen_inline_result?: unknown
+  callback_query?: unknown
 }
 
 // Error types
 export interface AppError extends Error {
   code?: string
   statusCode?: number
-  details?: any
+  details?: unknown
 }
 
 // Notification types
 export interface NotificationData {
   type: 'daily_summary' | 'late_alert' | 'absence_alert' | 'system_alert'
   recipient: string
-  templateData: Record<string, any>
+  templateData: Record<string, unknown>
 }
 
 // Export validation schemas (Zod)
 export interface ValidationSchema {
-  checkIn: any
-  checkOut: any
-  registration: any
-  exceptionalHours: any
-  login: any
+  checkIn: unknown
+  checkOut: unknown
+  registration: unknown
+  exceptionalHours: unknown
+  login: unknown
 } 

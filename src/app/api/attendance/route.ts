@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { AttendanceStatus } from '@prisma/client'
 import { calculateDistance } from '@/utils/location'
-import { isWithinWorkHours, isLateArrival, isEarlyDeparture } from '@/utils/date'
+import { isLateArrival, isEarlyDeparture } from '@/utils/date'
 
 // Office coordinates - El Mansoura CIH
 const OFFICE_LAT = 31.0417
@@ -25,7 +25,7 @@ export async function GET(request: NextRequest) {
     const startDate = searchParams.get('startDate')
     const endDate = searchParams.get('endDate')
 
-    let whereClause: any = {}
+    const whereClause: Record<string, unknown> = {}
 
     if (telegramId) {
       const employee = await prisma.employee.findUnique({
@@ -85,7 +85,7 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   try {
-    const body: AttendanceRequest = await request.json()
+    const body = await request.json() as AttendanceRequest
     const { telegramId, latitude, longitude, action, reason } = body
 
     // Validate required fields
@@ -149,7 +149,7 @@ export async function POST(request: NextRequest) {
       }
     })
 
-    let status: AttendanceStatus = 'PRESENT'
+    let status = 'INCOMPLETE'
     let isLate = false
     let isEarly = false
     let checkInTime: Date | null = null
@@ -177,13 +177,12 @@ export async function POST(request: NextRequest) {
           where: { id: todayRecord.id },
           data: {
             checkInTime,
-            status,
+            status: status as AttendanceStatus,
             isLate,
             lateReason: isLate ? reason : null,
-            distance: Math.round(distance),
+            checkInDistance: Math.round(distance),
             checkInLatitude: latitude,
-            checkInLongitude: longitude,
-            updatedAt: now
+            checkInLongitude: longitude
           }
         })
         return NextResponse.json({ record: updatedRecord, message: 'Checked in successfully' })
@@ -212,17 +211,19 @@ export async function POST(request: NextRequest) {
       const workingMinutes = Math.floor(
         (now.getTime() - todayRecord.checkInTime.getTime()) / (1000 * 60)
       )
+      const workingHours = workingMinutes / 60
 
       const updatedRecord = await prisma.attendanceRecord.update({
         where: { id: todayRecord.id },
         data: {
           checkOutTime,
-          workingMinutes,
-          isEarlyDeparture: isEarly,
-          earlyDepartureReason: isEarly ? reason : null,
+          workingHours,
+          isEarlyCheckout: isEarly,
+          earlyCheckoutReason: isEarly ? reason : null,
           checkOutLatitude: latitude,
           checkOutLongitude: longitude,
-          updatedAt: now
+          checkOutDistance: Math.round(distance),
+          status: 'COMPLETE' as AttendanceStatus
         }
       })
 
@@ -238,25 +239,28 @@ export async function POST(request: NextRequest) {
     const attendanceRecord = await prisma.attendanceRecord.create({
       data: {
         employeeId: employee.id,
-        status,
+        date: now,
+        status: status as AttendanceStatus,
         checkInTime,
         isLate,
         lateReason: isLate ? reason : null,
-        distance: Math.round(distance),
+        checkInDistance: Math.round(distance),
         checkInLatitude: latitude,
-        checkInLongitude: longitude,
-        createdAt: now,
-        updatedAt: now
+        checkInLongitude: longitude
       }
     })
 
     // Log the activity
     await prisma.serverActivity.create({
       data: {
-        action: 'ATTENDANCE_RECORDED',
-        details: `Employee ${employee.firstName} ${employee.lastName} ${action.toLowerCase()}`,
-        ipAddress: request.ip || 'unknown',
-        userAgent: request.headers.get('user-agent') || 'unknown'
+        type: 'ATTENDANCE_RECORDED',
+        message: `Employee ${employee.firstName} ${employee.lastName || ''} ${action.toLowerCase()}`,
+        metadata: {
+          employeeId: employee.id,
+          distance: Math.round(distance),
+          ipAddress: request.headers.get('x-forwarded-for') || request.headers.get('x-real-ip') || 'unknown',
+          userAgent: request.headers.get('user-agent') || 'unknown'
+        }
       }
     })
 

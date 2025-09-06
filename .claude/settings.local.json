@@ -1,0 +1,19 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npm run type-check:*)",
+      "Bash(npx tsc:*)",
+      "Bash(npm install:*)",
+      "Bash(npm run build:*)",
+      "Bash(find:*)",
+      "Bash(sed:*)",
+      "mcp__context7__resolve-library-id",
+      "mcp__context7__get-library-docs",
+      "WebSearch",
+      "Bash(npx eslint:*)",
+      "Bash(npm run lint)"
+    ],
+    "deny": [],
+    "ask": []
+  }
+}

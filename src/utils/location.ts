@@ -34,10 +34,10 @@ export function calculateDistance(
 /**
  * Validate if coordinates are within office radius
  */
-export async function validateLocation(
+export function validateLocation(
   latitude: number,
   longitude: number
-): Promise<LocationValidation> {
+): LocationValidation {
   const distance = calculateDistance(
     latitude,
     longitude,
@@ -88,11 +88,21 @@ export function isValidCoordinates(lat: number, lon: number): boolean {
  * Get distance description
  */
 export function getDistanceDescription(distance: number): string {
-  if (distance < 10) return 'Very close'
-  if (distance < 50) return 'Close'
-  if (distance < 100) return 'Near'
-  if (distance < 500) return 'Nearby'
-  if (distance < 1000) return 'Far'
+  if (distance < 10) {
+    return 'Very close'
+  }
+  if (distance < 50) {
+    return 'Close'
+  }
+  if (distance < 100) {
+    return 'Near'
+  }
+  if (distance < 500) {
+    return 'Nearby'
+  }
+  if (distance < 1000) {
+    return 'Far'
+  }
   return 'Very far'
 }
 

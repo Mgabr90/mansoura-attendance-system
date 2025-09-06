@@ -26,10 +26,6 @@ export * from './hooks'
 // ====================
 export * from './utils'
 
-// ====================
-// SERVICES & BUSINESS LOGIC
-// ====================
-export * from './services'
 
 // ====================
 // TYPE DEFINITIONS
@@ -55,7 +51,6 @@ export * from './lib/bot-commands'
 export const AuthModule = {
   // Hooks
   useAuth: () => import('./hooks/useAuth'),
-  useSession: () => import('./hooks/useSession'),
   
   // Components
   LoginForm: () => import('./components/forms/LoginForm'),
@@ -87,13 +82,7 @@ export const DashboardModule = {
 export const EmployeeModule = {
   // Components
   EmployeeList: () => import('./components/features/EmployeeList'),
-  EmployeeForm: () => import('./components/forms/EmployeeForm'),
-  
-  // Hooks
-  useEmployees: () => import('./hooks/useEmployees'),
-  
-  // Services
-  EmployeeService: () => import('./services/employee')
+  EmployeeForm: () => import('./components/forms/EmployeeForm')
 }
 
 /**
@@ -104,13 +93,8 @@ export const ReportsModule = {
   // Components
   ReportsPanel: () => import('./components/features/ReportsPanel'),
   
-  // Hooks
-  useReports: () => import('./hooks/useReports'),
-  useAnalytics: () => import('./hooks/useAnalytics'),
-  
   // Services
-  ExportService: () => import('./lib/export'),
-  ReportService: () => import('./services/report')
+  ExportService: () => import('./lib/export')
 }
 
 /**
@@ -119,12 +103,7 @@ export const ReportsModule = {
  */
 export const TelegramModule = {
   // Services
-  TelegramBotService: () => import('./services/telegram-bot'),
-  BotCommands: () => import('./lib/bot-commands'),
-  
-  // Utilities
-  TelegramFormatters: () => import('./utils/telegram-formatters'),
-  TelegramKeyboards: () => import('./utils/telegram-keyboards')
+  BotCommands: () => import('./lib/bot-commands')
 }
 
 // ====================
@@ -137,10 +116,7 @@ export const TelegramModule = {
  */
 export const HealthModule = {
   // Services
-  HealthMonitor: () => import('./lib/health-monitor'),
-  
-  // Hooks
-  useHealth: () => import('./hooks/useHealth')
+  HealthMonitor: () => import('./lib/health-monitor')
 }
 
 /**
@@ -149,13 +125,7 @@ export const HealthModule = {
  */
 export const NotificationModule = {
   // Components
-  NotificationCenter: () => import('./components/features/NotificationCenter'),
-  
-  // Hooks
-  useNotifications: () => import('./hooks/useNotifications'),
-  
-  // Services
-  NotificationService: () => import('./services/notification')
+  NotificationCenter: () => import('./components/features/NotificationCenter')
 }
 
 // ====================
@@ -167,13 +137,7 @@ export const NotificationModule = {
  * Only available in development mode
  */
 export const DevModule = process.env.NODE_ENV === 'development' ? {
-  // Testing utilities
-  mockData: () => import('./utils/mock-data'),
-  testHelpers: () => import('./utils/test-helpers'),
-  
-  // Development components
-  DevTools: () => import('./components/dev/DevTools'),
-  ApiDebugger: () => import('./components/dev/ApiDebugger')
+  // Development utilities (none implemented yet)
 } : {}
 
 // ====================

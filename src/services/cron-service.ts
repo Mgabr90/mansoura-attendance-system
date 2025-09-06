@@ -18,7 +18,7 @@ export interface CronJobConfig {
 
 export class CronService {
   private notificationService = getNotificationService()
-  private jobs: Map<string, cron.ScheduledTask> = new Map()
+  private jobs: Map<string, any> = new Map()
   private isRunning = false
 
   /**
@@ -100,7 +100,7 @@ export class CronService {
 
     } catch (error) {
       console.error('Failed to initialize cron service:', error)
-      await this.logCronActivity('cron_service_error', `Failed to start: ${error.message}`)
+      await this.logCronActivity('cron_service_error', `Failed to start: ${error instanceof Error ? error.message : String(error)}`)
     }
   }
 
@@ -109,10 +109,10 @@ export class CronService {
    */
   async stop(): Promise<void> {
     try {
-      for (const [name, task] of this.jobs) {
+      this.jobs.forEach((task, name) => {
         task.stop()
         console.log(`Stopped cron job: ${name}`)
-      }
+      })
 
       this.jobs.clear()
       this.isRunning = false
@@ -183,7 +183,7 @@ export class CronService {
 
     } catch (error) {
       console.error(`Failed to trigger job ${jobName}:`, error)
-      await this.logCronActivity('manual_trigger_error', `Failed to trigger ${jobName}: ${error.message}`)
+      await this.logCronActivity('manual_trigger_error', `Failed to trigger ${jobName}: ${error instanceof Error ? error.message : String(error)}`)
       return false
     }
   }
@@ -203,12 +203,11 @@ export class CronService {
       } catch (error) {
         const duration = Date.now() - startTime
         console.error(`Cron job ${name} failed:`, error)
-        await this.logCronActivity('job_failed', `${name} failed after ${duration}ms: ${error.message}`)
+        await this.logCronActivity('job_failed', `${name} failed after ${duration}ms: ${error instanceof Error ? error.message : String(error)}`)
       }
     }, {
-      scheduled: true,
       timezone: 'Africa/Cairo'
-    })
+    } as any)
 
     this.jobs.set(name, cronTask)
     console.log(`Scheduled cron job: ${name} (${schedule})`)
@@ -332,7 +331,7 @@ export class CronService {
 
       const deletedNotifications = await prisma.notificationLog.deleteMany({
         where: {
-          createdAt: { lt: thirtyDaysAgo }
+          sentAt: { lt: thirtyDaysAgo }
         }
       })
 
@@ -355,7 +354,7 @@ export class CronService {
 
     } catch (error) {
       console.error('Cleanup failed:', error)
-      await this.logCronActivity('cleanup_failed', error.message)
+      await this.logCronActivity('cleanup_failed', error instanceof Error ? error.message : String(error))
     }
   }
 
@@ -403,7 +402,7 @@ export class CronService {
       await this.notificationService.sendHealthAlert(
         'error',
         'Health check failed',
-        { error: error.message }
+        { error: error instanceof Error ? error.message : String(error) }
       )
     }
   }

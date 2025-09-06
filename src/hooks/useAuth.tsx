@@ -6,7 +6,7 @@
 'use client'
 
 import { useState, useEffect, useCallback, createContext, useContext } from 'react'
-import { AuthService } from '@/lib/auth'
+import AuthService from '@/lib/auth'
 import type { Admin as User } from '@prisma/client'
 
 interface AuthContextType {
@@ -156,4 +156,5 @@ const useAuth = (): AuthContextType => {
   return context
 }
 
+export { useAuth }
 export default useAuth 

@@ -11,7 +11,7 @@ import type { Employee, Admin } from '@prisma/client'
 export interface NotificationOptions {
   parseMode?: 'Markdown' | 'HTML'
   silentNotification?: boolean
-  replyMarkup?: any
+  replyMarkup?: unknown
 }
 
 export interface DailyReportData {
@@ -66,7 +66,7 @@ export class NotificationService {
 
     } catch (error) {
       console.error('Failed to send daily summary:', error)
-      await this.logNotification('system', 'daily_summary_error', error.message, false)
+      await this.logNotification('system', 'daily_summary_error', error instanceof Error ? error.message : String(error), false)
     }
   }
 
@@ -606,7 +606,7 @@ export class NotificationService {
 
   private formatHealthAlert(level: string, message: string, details?: any): string {
     const icons = { warning: '⚠️', error: '❌', critical: '🚨' }
-    const icon = icons[level] || '⚠️'
+    const icon = (icons as Record<string, string>)[level] || '⚠️'
 
     let alert = `${icon} **System Health Alert**\n\n`
     alert += `**Level:** ${level.toUpperCase()}\n`

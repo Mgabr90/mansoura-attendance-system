@@ -1,0 +1,54 @@
+# Dependencies
+node_modules/
+.pnpm-store/
+
+# Build outputs
+.next/
+out/
+dist/
+build/
+
+# Generated files
+coverage/
+*.tsbuildinfo
+
+# Environment files
+.env*
+
+# IDE
+.vscode/
+.idea/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+logs/
+
+# Runtime data
+pids/
+*.pid
+*.seed
+
+# Archives
+*.tar.gz
+*.zip
+
+# Database
+*.db
+*.sqlite
+
+# Cache
+.cache/
+*.cache
+
+# Documentation
+docs/
+*.md
+
+# Lock files
+package-lock.json
+yarn.lock
+pnpm-lock.yaml

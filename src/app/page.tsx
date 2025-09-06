@@ -95,7 +95,7 @@ export default function HomePage() {
                   Admin Portal
                 </Button>
               </Link>
-              <Link href="/admin/login">
+              <Link href="/admin">
                 <Button variant="primary" size="sm">
                   Sign In
                 </Button>

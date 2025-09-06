@@ -8,7 +8,8 @@ import AuthService from '@/lib/auth'
 
 export async function POST(request: NextRequest) {
   try {
-    const { telegramId } = await request.json()
+    const requestBody = await request.json() as { telegramId: string }
+    const { telegramId } = requestBody
 
     if (!telegramId) {
       return NextResponse.json(
@@ -34,11 +35,11 @@ export async function POST(request: NextRequest) {
     return AuthService.createAuthenticatedResponse({
       success: true,
       admin: {
-        id: authResult.admin.id,
-        firstName: authResult.admin.firstName,
-        lastName: authResult.admin.lastName,
-        role: authResult.admin.role,
-        telegramId: authResult.admin.telegramId
+        id: authResult.admin?.id,
+        firstName: authResult.admin?.firstName,
+        lastName: authResult.admin?.lastName,
+        role: authResult.admin?.role,
+        telegramId: authResult.admin?.telegramId
       },
       message: 'Login successful'
     }, token)

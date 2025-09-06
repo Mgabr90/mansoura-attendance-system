@@ -130,7 +130,7 @@ class ExportService {
         emp.phoneNumber || '',
         emp.telegramId,
         emp._count.attendanceRecords.toString(),
-        this.formatDate(emp.createdAt)
+        this.formatDate(emp.registeredAt)
       ]),
       summary: {
         totalEmployees: employees.length,
@@ -357,7 +357,7 @@ class ExportService {
       }
     }
 
-    const totalEmployees = reportData.summary.totalEmployees as number
+    const totalEmployees = reportData.summary?.totalEmployees as number || 0
 
     reportData.rows = departments.map(dept => [
       dept.department || 'Unknown',
@@ -411,7 +411,7 @@ class ExportService {
         `${record.employee.firstName} ${record.employee.lastName || ''}`.trim(),
         record.employee.department || '',
         record.checkInTime ? this.formatTime(record.checkInTime) : '',
-        record.minutesLate?.toString() || '0',
+        record.isLate ? 'Yes' : 'No',
         record.lateReason || ''
       ]),
       summary: {

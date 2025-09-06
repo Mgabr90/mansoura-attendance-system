@@ -7,10 +7,21 @@ import { NextRequest, NextResponse } from 'next/server'
 import { withAuth } from '@/lib/auth'
 import ExportService, { type ExportOptions } from '@/lib/export'
 
+interface ExportRequest {
+  type: string
+  format?: string
+  dateRange?: {
+    start: string
+    end: string
+  }
+  filename?: string
+  analyticsType?: string
+}
+
 export async function POST(request: NextRequest) {
-  return withAuth(request, async (session) => {
+  return withAuth(request, async (_session) => {
     try {
-      const body = await request.json()
+      const body = await request.json() as ExportRequest
       const { 
         type, 
         format = 'csv', 
@@ -28,7 +39,7 @@ export async function POST(request: NextRequest) {
       }
 
       // Parse date range if provided
-      let parsedDateRange = undefined
+      let parsedDateRange: { start: Date; end: Date } | undefined = undefined
       if (dateRange?.start && dateRange?.end) {
         parsedDateRange = {
           start: new Date(dateRange.start),
@@ -38,7 +49,7 @@ export async function POST(request: NextRequest) {
 
       // Prepare export options
       const options: ExportOptions = {
-        format,
+        format: format as "json" | "csv" | "excel" | "pdf",
         filename,
         dateRange: parsedDateRange,
         includeHeaders: true,
@@ -78,14 +89,14 @@ export async function POST(request: NextRequest) {
       }
 
       // Determine content type
-      const contentTypes = {
+      const contentTypes: Record<string, string> = {
         csv: 'text/csv',
         json: 'application/json',
         excel: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
         pdf: 'application/pdf'
       }
 
-      const contentType = contentTypes[format] || 'text/plain'
+      const contentType = contentTypes[format as string] || 'text/plain'
       
       // Generate filename if not provided
       const timestamp = new Date().toISOString().split('T')[0]
@@ -113,7 +124,7 @@ export async function POST(request: NextRequest) {
 }
 
 export async function GET(request: NextRequest) {
-  return withAuth(request, async (session) => {
+  return withAuth(request, async (_session) => {
     // Return available export options
     return NextResponse.json({
       success: true,

@@ -8,8 +8,8 @@
 import React, { useState, useEffect } from 'react'
 import Card from '../ui/Card'
 import Button from '../ui/Button'
-import { useDashboard } from '@/hooks/useDashboard'
-import { useAuth } from '@/hooks/useAuth'
+import { useDashboard } from '@/src'
+import { useAuth } from '@/src'
 import AttendanceChart from '../charts/AttendanceChart'
 import NotificationCenter from './NotificationCenter'
 
@@ -162,7 +162,12 @@ const Dashboard: React.FC<DashboardProps> = ({ className }) => {
             </Card.Description>
           </Card.Header>
           <Card.Body>
-            <AttendanceChart period={selectedPeriod} />
+            <AttendanceChart data={stats?.weeklyTrends?.map(trend => ({
+              date: trend.date,
+              present: trend.present,
+              absent: trend.total - trend.present,
+              late: 0
+            })) || []} />
           </Card.Body>
         </Card>
 
@@ -174,7 +179,7 @@ const Dashboard: React.FC<DashboardProps> = ({ className }) => {
             </Card.Description>
           </Card.Header>
           <Card.Body>
-            <NotificationCenter compact />
+            <NotificationCenter />
           </Card.Body>
         </Card>
       </div>

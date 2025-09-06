@@ -3,21 +3,28 @@
  * Manages initialization, lifecycle, and interaction between services
  */
 
-import { AuthService } from '@/lib/auth'
+/* eslint-disable no-console */
+
+import AuthService from '@/lib/auth'
 import { ExportService } from '@/lib/export'
 import { HealthMonitor } from '@/lib/health-monitor'
 import CronService from './cron-service'
-import NotificationService from './notification'
+import { NotificationService } from './notification'
 import StartupService from './startup'
 
 type ServiceStatus = 'initialized' | 'starting' | 'running' | 'stopping' | 'stopped' | 'error'
 
 interface ServiceInstance {
   name: string
-  instance: any
+  instance: ServiceWithLifecycle
   status: ServiceStatus
   error?: string
   startedAt?: Date
+}
+
+interface ServiceWithLifecycle {
+  initialize?: () => Promise<void> | void
+  shutdown?: () => Promise<void> | void
 }
 
 class ServiceManager {
@@ -58,7 +65,7 @@ class ServiceManager {
   /**
    * Register and start a service
    */
-  private async registerService(name: string, instance: any): Promise<void> {
+  private async registerService(name: string, instance: ServiceWithLifecycle): Promise<void> {
     console.log(`📦 ServiceManager: Registering ${name} service...`)
     
     const serviceInstance: ServiceInstance = {
@@ -73,7 +80,7 @@ class ServiceManager {
       serviceInstance.status = 'starting'
       
       // Check if service has an initialize method
-      if (typeof instance.initialize === 'function') {
+      if (instance.initialize && typeof instance.initialize === 'function') {
         await instance.initialize()
       }
       
@@ -93,9 +100,9 @@ class ServiceManager {
   /**
    * Get a service instance by name
    */
-  getService<T = any>(name: string): T | null {
+  getService<T = ServiceWithLifecycle>(name: string): T | null {
     const service = this.services.get(name)
-    return service?.instance || null
+    return (service?.instance as T) || null
   }
 
   /**
@@ -140,7 +147,7 @@ class ServiceManager {
       service.status = 'stopping'
       
       // Check if service has a shutdown method
-      if (typeof service.instance.shutdown === 'function') {
+      if (service.instance.shutdown && typeof service.instance.shutdown === 'function') {
         await service.instance.shutdown()
       }
       

@@ -37,7 +37,7 @@ export default function AdminDashboard() {
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    const fetchDashboardData = async () => {
+    const fetchDashboardData = () => {
       try {
         const mockStats: DashboardStats = {
           totalEmployees: 45,
@@ -86,7 +86,7 @@ export default function AdminDashboard() {
       }
     }
 
-    fetchDashboardData()
+    void fetchDashboardData()
   }, [])
 
   if (loading) {

@@ -75,7 +75,7 @@ export class KeyboardBuilder {
     return {
       keyboard: buttons,
       resize_keyboard: true,
-      persistent: true
+      is_persistent: true
     };
   }
 
@@ -351,7 +351,7 @@ export class KeyboardBuilder {
     return {
       keyboard: buttons,
       resize_keyboard: true,
-      persistent: true
+      is_persistent: true
     };
   }
 

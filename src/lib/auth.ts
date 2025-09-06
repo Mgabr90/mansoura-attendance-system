@@ -9,7 +9,7 @@ import { prisma } from './prisma'
 import { cookies } from 'next/headers'
 
 // Types
-export interface SessionData {
+export interface SessionData extends JWTPayload {
   adminId: string
   telegramId: string
   role: string
@@ -52,42 +52,14 @@ class AuthService {
         data: {
           type: 'admin_login',
           message: `Admin ${admin.firstName} logged in`,
-                      metadata: JSON.stringify({ telegramId, timestamp: new Date() })
-  }
-}
+          metadata: JSON.stringify({ telegramId, timestamp: new Date() })
+        }
+      })
 
-// Export as default and named export for flexibility
-export default AuthService
-export { AuthService }
-
-// Export utility function for middleware
-export async function withAuth(
-  request: NextRequest,
-  handler: (session: SessionData) => Promise<NextResponse>
-): Promise<NextResponse> {
-  const session = await AuthService.getSessionFromRequest(request)
-  
-  if (!session) {
-    return NextResponse.json(
-      { success: false, error: 'Authentication required' },
-      { status: 401 }
-    )
-  }
-
-  return handler(session)
-})
-
-      return { 
-        success: true, 
-        admin 
-      }
-
+      return { success: true, admin: admin }
     } catch (error) {
       console.error('Authentication error:', error)
-      return { 
-        success: false, 
-        error: 'Authentication failed' 
-      }
+      return { success: false, error: 'Authentication failed' }
     }
   }
 
@@ -185,7 +157,7 @@ export async function withAuth(
    * Check if user has required role
    */
   static hasRole(session: SessionData, requiredRole: string): boolean {
-    const rolePriority = {
+    const rolePriority: Record<string, number> = {
       'SUPER_ADMIN': 3,
       'ADMIN': 2,
       'MODERATOR': 1

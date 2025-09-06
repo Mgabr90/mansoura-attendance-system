@@ -7,7 +7,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { getCronService } from '@/services/cron-service'
 import { getNotificationService } from '@/services/notification-service'
-import type { Prisma } from '@prisma/client'
+import type { Prisma, AdminRole } from '@prisma/client'
 
 // ============ GET /api/admin ============
 export async function GET(request: NextRequest) {
@@ -46,7 +46,7 @@ export async function GET(request: NextRequest) {
         return await getAttendanceReports(searchParams)
       
       case 'reports':
-        return await getDetailedReports(searchParams)
+        return await getDailyReport({})
       
       case 'system':
         return await getSystemStatus()
@@ -66,7 +66,8 @@ export async function GET(request: NextRequest) {
 
   } catch (error) {
     console.error('Admin API error:', error)
-    await logServerActivity('admin_api_error', error.message)
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error'
+    await logServerActivity('admin_api_error', errorMessage)
     return NextResponse.json({ 
       success: false, 
       error: 'Internal server error' 
@@ -77,7 +78,8 @@ export async function GET(request: NextRequest) {
 // ============ POST /api/admin ============
 export async function POST(request: NextRequest) {
   try {
-    const { action, adminId, ...data } = await request.json()
+    const requestData = await request.json() as { action: string; adminId: string; [key: string]: unknown }
+    const { action, adminId, ...data } = requestData
 
     // Verify admin authentication
     if (!adminId) {
@@ -100,37 +102,37 @@ export async function POST(request: NextRequest) {
 
     switch (action) {
       case 'create_employee':
-        return await createEmployee(data, admin)
+        return await createEmployee(data as unknown as CreateEmployeeData, admin as AdminUser)
       
       case 'update_employee':
-        return await updateEmployee(data, admin)
+        return await updateEmployee(data as unknown as UpdateEmployeeData, admin as AdminUser)
       
       case 'delete_employee':
-        return await deleteEmployee(data, admin)
+        return await deleteEmployee(data as unknown as DeleteEmployeeData, admin as AdminUser)
       
       case 'create_admin':
-        return await createAdmin(data, admin)
+        return await createAdmin(data as unknown as CreateAdminData, admin as AdminUser)
       
       case 'send_notification':
-        return await sendCustomNotification(data, admin)
+        return await sendCustomNotification(data as unknown as NotificationData, admin as AdminUser)
       
       case 'broadcast':
-        return await broadcastMessage(data, admin)
+        return await broadcastMessage(data as unknown as BroadcastData, admin as AdminUser)
       
       case 'trigger_cron':
-        return await triggerCronJob(data, admin)
+        return await triggerCronJob(data as unknown as CronJobData, admin as AdminUser)
       
       case 'update_settings':
-        return await updateSystemSettings(data, admin)
+        return await updateSystemSettings(data as unknown as SystemSettingsData, admin)
       
       case 'reset_password':
-        return await resetEmployeePassword(data, admin)
+        return await resetEmployeePassword(data as unknown as PasswordResetData, admin)
       
       case 'bulk_import':
-        return await bulkImportEmployees(data, admin)
+        return await bulkImportEmployees(data as unknown as BulkImportData, admin)
       
       case 'manual_attendance':
-        return await manualAttendanceEntry(data, admin)
+        return await manualAttendanceEntry(data as unknown as AttendanceRecordData, admin)
       
       default:
         return NextResponse.json({ 
@@ -141,7 +143,8 @@ export async function POST(request: NextRequest) {
 
   } catch (error) {
     console.error('Admin POST API error:', error)
-    await logServerActivity('admin_post_error', error.message)
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error'
+    await logServerActivity('admin_post_error', errorMessage)
     return NextResponse.json({ 
       success: false, 
       error: 'Internal server error' 
@@ -161,8 +164,7 @@ async function getDashboardStats() {
     totalAdmins,
     todayRecords,
     checkedInToday,
-    lateToday,
-    absentToday
+    lateToday
   ] = await Promise.all([
     prisma.employee.count(),
     prisma.employee.count({ where: { isActive: true } }),
@@ -173,13 +175,11 @@ async function getDashboardStats() {
     }),
     prisma.attendanceRecord.count({ 
       where: { date: today, isLate: true } 
-    }),
-    // Calculate absent employees
-    prisma.employee.count({ where: { isActive: true } }) - 
-    prisma.attendanceRecord.count({ 
-      where: { date: today, checkInTime: { not: null } } 
     })
   ])
+
+  // Calculate absent employees
+  const absentToday = activeEmployees - checkedInToday
 
   // Get recent activities
   const recentActivities = await prisma.serverActivity.findMany({
@@ -254,7 +254,7 @@ async function getEmployeeManagement(searchParams: URLSearchParams) {
       },
       skip,
       take: limit,
-      orderBy: { createdAt: 'desc' }
+      orderBy: { registeredAt: 'desc' }
     }),
     prisma.employee.count({ where: whereClause })
   ])
@@ -274,12 +274,10 @@ async function getEmployeeManagement(searchParams: URLSearchParams) {
 }
 
 async function getAttendanceReports(searchParams: URLSearchParams) {
-  const startDate = searchParams.get('startDate') 
-    ? new Date(searchParams.get('startDate')!) 
-    : new Date()
-  const endDate = searchParams.get('endDate') 
-    ? new Date(searchParams.get('endDate')!) 
-    : new Date()
+  const startDateParam = searchParams.get('startDate')
+  const startDate = startDateParam ? new Date(startDateParam) : new Date()
+  const endDateParam = searchParams.get('endDate')
+  const endDate = endDateParam ? new Date(endDateParam) : new Date()
   const employeeId = searchParams.get('employeeId')
   const reportType = searchParams.get('type') || 'daily'
 
@@ -288,7 +286,7 @@ async function getAttendanceReports(searchParams: URLSearchParams) {
 
   const whereClause: Prisma.AttendanceRecordWhereInput = {
     date: { gte: startDate, lte: endDate },
-    ...(employeeId && { employeeId })
+    ...(employeeId && { employeeId: parseInt(employeeId) })
   }
 
   switch (reportType) {
@@ -394,13 +392,15 @@ async function getEmployeeReport(
     }, { status: 400 })
   }
 
+  const employeeIdNum = parseInt(employeeId)
+  
   const [employee, records] = await Promise.all([
     prisma.employee.findUnique({
-      where: { id: employeeId },
+      where: { id: employeeIdNum },
       include: { _count: { select: { attendanceRecords: true } } }
     }),
     prisma.attendanceRecord.findMany({
-      where: { ...whereClause, employeeId },
+      where: { ...whereClause, employeeId: employeeIdNum },
       orderBy: { date: 'desc' }
     })
   ])
@@ -470,7 +470,7 @@ async function getRecentErrors() {
   })
 }
 
-async function getSystemHealth() {
+function getSystemHealth() {
   const memoryUsage = process.memoryUsage()
   return {
     uptime: process.uptime(),
@@ -494,7 +494,7 @@ async function getNotificationLogs(searchParams: URLSearchParams) {
       where: type ? { type } : {},
       take: limit,
       skip,
-      orderBy: { createdAt: 'desc' }
+      orderBy: { sentAt: 'desc' }
     }),
     prisma.notificationLog.count({
       where: type ? { type } : {}
@@ -540,7 +540,7 @@ async function getServerActivities(searchParams: URLSearchParams) {
 
 async function exportData(searchParams: URLSearchParams) {
   const type = searchParams.get('type') || 'employees'
-  const format = searchParams.get('format') || 'json'
+  const _format = searchParams.get('format') || 'json'
 
   switch (type) {
     case 'employees':
@@ -548,12 +548,10 @@ async function exportData(searchParams: URLSearchParams) {
       return NextResponse.json({ success: true, data: employees })
 
     case 'attendance':
-      const startDate = searchParams.get('startDate') 
-        ? new Date(searchParams.get('startDate')!) 
-        : new Date()
-      const endDate = searchParams.get('endDate') 
-        ? new Date(searchParams.get('endDate')!) 
-        : new Date()
+      const startDateParam = searchParams.get('startDate')
+      const startDate = startDateParam ? new Date(startDateParam) : new Date()
+      const endDateParam = searchParams.get('endDate')
+      const endDate = endDateParam ? new Date(endDateParam) : new Date()
       
       const attendance = await prisma.attendanceRecord.findMany({
         where: {
@@ -573,7 +571,77 @@ async function exportData(searchParams: URLSearchParams) {
 
 // ============ POST ACTION HANDLERS ============
 
-async function createEmployee(data: any, admin: any) {
+interface CreateEmployeeData {
+  telegramId: string
+  firstName: string
+  lastName: string
+  username: string
+  phoneNumber: string
+  department: string
+  position: string
+}
+
+interface AdminUser {
+  id: number
+  firstName: string
+  telegramId: string
+}
+
+interface DeleteEmployeeData {
+  id: number
+}
+
+interface CreateAdminData {
+  telegramId: string
+  firstName: string
+  lastName: string
+  username: string
+  role?: string
+}
+
+interface NotificationData {
+  recipientId: string
+  message: string
+  options?: NotificationOptions
+}
+
+interface NotificationOptions {
+  keyboard?: unknown
+  silent?: boolean
+}
+
+interface BroadcastData {
+  target: 'all' | 'employees' | 'admins'
+  message: string
+  options?: NotificationOptions
+}
+
+interface CronJobData {
+  jobName: string
+}
+
+interface SystemSettingsData {
+  [key: string]: unknown
+}
+
+interface PasswordResetData {
+  employeeId: string | number
+}
+
+interface BulkImportData {
+  employees: CreateEmployeeData[]
+}
+
+interface AttendanceRecordData {
+  employeeId: string | number
+  date: Date | string
+  checkInTime?: Date | string
+  checkOutTime?: Date | string
+  status: string
+  isLate: boolean
+}
+
+async function createEmployee(data: CreateEmployeeData, admin: AdminUser) {
   const employee = await prisma.employee.create({
     data: {
       telegramId: data.telegramId,
@@ -596,7 +664,18 @@ async function createEmployee(data: any, admin: any) {
   })
 }
 
-async function updateEmployee(data: any, admin: any) {
+interface UpdateEmployeeData {
+  id: number
+  firstName: string
+  lastName: string
+  username: string
+  phoneNumber: string
+  department: string
+  position: string
+  isActive: boolean
+}
+
+async function updateEmployee(data: UpdateEmployeeData, admin: AdminUser) {
   const employee = await prisma.employee.update({
     where: { id: data.id },
     data: {
@@ -619,7 +698,7 @@ async function updateEmployee(data: any, admin: any) {
   })
 }
 
-async function deleteEmployee(data: any, admin: any) {
+async function deleteEmployee(data: DeleteEmployeeData, admin: AdminUser) {
   const employee = await prisma.employee.update({
     where: { id: data.id },
     data: { isActive: false }
@@ -633,14 +712,14 @@ async function deleteEmployee(data: any, admin: any) {
   })
 }
 
-async function createAdmin(data: any, admin: any) {
+async function createAdmin(data: CreateAdminData, admin: AdminUser) {
   const newAdmin = await prisma.admin.create({
     data: {
       telegramId: data.telegramId,
       firstName: data.firstName,
       lastName: data.lastName,
       username: data.username,
-      role: data.role || 'ADMIN',
+      role: (data.role as AdminRole) || 'ADMIN',
       isActive: true
     }
   })
@@ -654,13 +733,13 @@ async function createAdmin(data: any, admin: any) {
   })
 }
 
-async function sendCustomNotification(data: any, admin: any) {
+async function sendCustomNotification(data: NotificationData, admin: AdminUser) {
   const notificationService = getNotificationService()
   
   const success = await notificationService.sendCustomNotification(
     data.recipientId,
     data.message,
-    data.options
+    data.options || {}
   )
 
   await logServerActivity('custom_notification', `Notification sent by admin ${admin.firstName}`)
@@ -671,13 +750,13 @@ async function sendCustomNotification(data: any, admin: any) {
   })
 }
 
-async function broadcastMessage(data: any, admin: any) {
+async function broadcastMessage(data: BroadcastData, admin: AdminUser) {
   const notificationService = getNotificationService()
   
   if (data.target === 'employees') {
-    await notificationService.broadcastToAllEmployees(data.message, data.options)
+    await notificationService.broadcastToAllEmployees(data.message, data.options || {})
   } else if (data.target === 'admins') {
-    await notificationService.broadcastToAllAdmins(data.message, data.options)
+    await notificationService.broadcastToAllAdmins(data.message, data.options || {})
   }
 
   await logServerActivity('broadcast_message', `Broadcast sent to ${data.target} by admin ${admin.firstName}`)
@@ -688,7 +767,7 @@ async function broadcastMessage(data: any, admin: any) {
   })
 }
 
-async function triggerCronJob(data: any, admin: any) {
+async function triggerCronJob(data: CronJobData, admin: AdminUser) {
   const cronService = getCronService()
   const success = await cronService.triggerJob(data.jobName)
 
@@ -700,7 +779,7 @@ async function triggerCronJob(data: any, admin: any) {
   })
 }
 
-async function updateSystemSettings(data: any, admin: any) {
+async function updateSystemSettings(data: SystemSettingsData, admin: AdminUser) {
   // Implementation for updating system settings
   await logServerActivity('settings_updated', `Settings updated by admin ${admin.firstName}`)
 
@@ -710,7 +789,7 @@ async function updateSystemSettings(data: any, admin: any) {
   })
 }
 
-async function resetEmployeePassword(data: any, admin: any) {
+async function resetEmployeePassword(data: PasswordResetData, admin: AdminUser) {
   // Implementation for password reset
   await logServerActivity('password_reset', `Password reset for employee ${data.employeeId} by admin ${admin.firstName}`)
 
@@ -720,7 +799,7 @@ async function resetEmployeePassword(data: any, admin: any) {
   })
 }
 
-async function bulkImportEmployees(data: any, admin: any) {
+async function bulkImportEmployees(data: BulkImportData, admin: AdminUser) {
   const employees = data.employees
   const results = []
 
@@ -740,7 +819,8 @@ async function bulkImportEmployees(data: any, admin: any) {
       })
       results.push({ success: true, employee })
     } catch (error) {
-      results.push({ success: false, error: error.message, data: empData })
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error'
+      results.push({ success: false, error: errorMessage, data: empData })
     }
   }
 
@@ -754,20 +834,15 @@ async function bulkImportEmployees(data: any, admin: any) {
   })
 }
 
-async function manualAttendanceEntry(data: any, admin: any) {
+async function manualAttendanceEntry(data: AttendanceRecordData, admin: AdminUser) {
   const record = await prisma.attendanceRecord.create({
     data: {
       employeeId: data.employeeId,
       date: new Date(data.date),
       checkInTime: data.checkInTime ? new Date(data.checkInTime) : null,
       checkOutTime: data.checkOutTime ? new Date(data.checkOutTime) : null,
-      checkInLocation: data.checkInLocation,
-      checkOutLocation: data.checkOutLocation,
-      status: data.status,
-      workingHours: data.workingHours,
-      isLate: data.isLate,
-      isEarlyCheckout: data.isEarlyCheckout,
-      notes: `Manual entry by admin ${admin.firstName}`
+      status: data.status || 'INCOMPLETE',
+      isLate: data.isLate || false
     }
   })
 

@@ -18,7 +18,7 @@ import type {
 // Extend Telegraf Context with our custom properties
 interface BotContext extends Context {
   employee?: Employee
-  state?: any
+  state: any
 }
 
 interface ConversationState {
@@ -70,7 +70,7 @@ class AttendanceBot {
     // Error handling middleware
     this.bot.catch((err, ctx) => {
       console.error('Bot error:', err)
-      this.logServerActivity('bot_error', err.message, { userId: ctx.from?.id })
+      this.logServerActivity('bot_error', err instanceof Error ? err.message : String(err), { userId: ctx.from?.id })
       ctx.reply('❌ An error occurred. Please try again or contact support.')
     })
   }
@@ -146,7 +146,7 @@ class AttendanceBot {
 
     await ctx.reply(message, {
       parse_mode: 'Markdown',
-      reply_markup: keyboard
+      reply_markup: keyboard as any
     })
 
     await this.logServerActivity('command_start', `User ${user.id} started bot`)
@@ -163,13 +163,13 @@ class AttendanceBot {
       '📝 Please share your contact information by clicking the "Share Contact" button below.',
       {
         parse_mode: 'Markdown',
-        reply_markup: keyboard
+        reply_markup: keyboard as any
       }
     )
   }
 
   private async handleContact(ctx: BotContext) {
-    const contact = ctx.message.contact
+    const contact = (ctx.message as any)?.contact
     const user = ctx.from!
 
     if (contact.user_id !== user.id) {
@@ -195,7 +195,7 @@ class AttendanceBot {
         'You can now use the location sharing buttons to check in and out.',
         {
           parse_mode: 'Markdown',
-          reply_markup: keyboard
+          reply_markup: keyboard as any
         }
       )
 
@@ -285,8 +285,8 @@ class AttendanceBot {
       return
     }
 
-    const location = ctx.message.location
-    const { isValid, distance } = validateLocation(location.latitude, location.longitude)
+    const location = (ctx.message as any)?.location
+    const { isValid, distance } = await validateLocation(location.latitude, location.longitude)
 
     if (!isValid) {
       await ctx.reply(MessageFormatter.formatLocationDeniedMessage(distance))
@@ -348,7 +348,7 @@ class AttendanceBot {
       
       await ctx.reply(message, {
         parse_mode: 'Markdown',
-        reply_markup: keyboard
+        reply_markup: keyboard as any
       })
 
       // If late, ask for reason
@@ -362,7 +362,7 @@ class AttendanceBot {
         await ctx.reply(
           '⏰ You are checking in late. Please provide a reason:',
           {
-            reply_markup: KeyboardBuilder.getReasonKeyboard('late')
+            reply_markup: KeyboardBuilder.getReasonKeyboard('late') as any
           }
         )
 
@@ -418,7 +418,7 @@ class AttendanceBot {
       
       await ctx.reply(message, {
         parse_mode: 'Markdown',
-        reply_markup: keyboard
+        reply_markup: keyboard as any
       })
 
       // If early, ask for reason
@@ -432,7 +432,7 @@ class AttendanceBot {
         await ctx.reply(
           '⏰ You are checking out early. Please provide a reason:',
           {
-            reply_markup: KeyboardBuilder.getReasonKeyboard('early')
+            reply_markup: KeyboardBuilder.getReasonKeyboard('early') as any
           }
         )
 
@@ -467,7 +467,7 @@ class AttendanceBot {
 
     await ctx.reply(message, {
       parse_mode: 'Markdown',
-      reply_markup: keyboard
+      reply_markup: keyboard as any
     })
   }
 
@@ -477,7 +477,7 @@ class AttendanceBot {
       return
     }
 
-    const args = ctx.message?.text?.split(' ').slice(1)
+    const args = ctx.msg.has('text') ? ctx.msg.text.split(' ').slice(1) : null
     if (!args || args.length === 0) {
       await ctx.reply(
         '❓ **Add Admin**\n\n' +
@@ -594,7 +594,7 @@ class AttendanceBot {
 
     await ctx.reply(message, {
       parse_mode: 'Markdown',
-      reply_markup: keyboard
+      reply_markup: keyboard as any
     })
   }
 
@@ -730,7 +730,7 @@ class AttendanceBot {
   private async handleTextMessage(ctx: BotContext) {
     if (!ctx.from) return
 
-    const text = ctx.message?.text
+    const text = ctx.msg.has('text') ? ctx.msg.text : undefined
     if (!text) return
 
     // Handle conversation states
@@ -766,7 +766,7 @@ class AttendanceBot {
   }
 
   private async handleConversationState(ctx: BotContext, state: ConversationState) {
-    const text = ctx.message?.text
+    const text = ctx.msg.has('text') ? ctx.msg.text : undefined
     
     switch (state.type) {
       case 'late_reason':
@@ -783,7 +783,7 @@ class AttendanceBot {
   }
 
   private async handleCallbackQuery(ctx: BotContext) {
-    if (!ctx.callbackQuery?.data) return
+    if (!('data' in ctx.callbackQuery!) || !ctx.callbackQuery.data) return
 
     const data = ctx.callbackQuery.data
     
@@ -949,7 +949,7 @@ class AttendanceBot {
         data: {
           type,
           message,
-          metadata: metadata ? JSON.stringify(metadata) : null
+          metadata: metadata ? JSON.stringify(metadata) : undefined
         }
       })
     } catch (error) {
@@ -980,21 +980,21 @@ class AttendanceBot {
         const keyboard = KeyboardBuilder.getEmployeeManagementKeyboard()
         await ctx.editMessageText('👥 **Employee Management**', {
           parse_mode: 'Markdown',
-          reply_markup: keyboard
+          reply_markup: keyboard as any
         })
         break
       case 'admin_reports':
         const reportsKeyboard = KeyboardBuilder.getReportsKeyboard()
         await ctx.editMessageText('📊 **Reports Dashboard**', {
           parse_mode: 'Markdown',
-          reply_markup: reportsKeyboard
+          reply_markup: reportsKeyboard as any
         })
         break
       case 'admin_webhook':
         const webhookKeyboard = KeyboardBuilder.getWebhookKeyboard()
         await ctx.editMessageText('📡 **Webhook Management**', {
           parse_mode: 'Markdown',
-          reply_markup: webhookKeyboard
+          reply_markup: webhookKeyboard as any
         })
         break
       case 'admin_health':

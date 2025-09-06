@@ -1,3 +1,5 @@
+/* eslint-disable no-console */
+
 /**
  * Startup Service
  * Initializes all system services and components
@@ -38,7 +40,7 @@ export class StartupService {
       await this.initializeCronService()
 
       // 4. Initialize notification service
-      await this.initializeNotificationService()
+      this.initializeNotificationService()
 
       // 5. Log startup
       await this.logStartup()
@@ -89,7 +91,7 @@ export class StartupService {
     try {
       console.log('🤖 Initializing Telegram bot...')
       const bot = getBot()
-      await bot.initialize()
+      await bot.launch()
       console.log('✅ Telegram bot initialized')
     } catch (error) {
       console.error('❌ Telegram bot initialization failed:', error)
@@ -109,10 +111,10 @@ export class StartupService {
     }
   }
 
-  private async initializeNotificationService(): Promise<void> {
+  private initializeNotificationService(): void {
     try {
       console.log('📢 Initializing notification service...')
-      const notificationService = getNotificationService()
+      const _notificationService = getNotificationService()
       // Notification service is ready to use
       console.log('✅ Notification service initialized')
     } catch (error) {

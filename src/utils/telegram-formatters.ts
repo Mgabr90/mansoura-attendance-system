@@ -223,7 +223,9 @@ Great work today! See you tomorrow! 👋${earlyNote}`;
     });
     
     message += `✅ **Check-in:** ${checkInStr}`;
-    if (isLate) message += ' ⚠️ (Late)';
+    if (isLate) {
+      message += ' ⚠️ (Late)';
+    }
     message += '\n';
 
     if (checkOutTime) {
@@ -232,7 +234,9 @@ Great work today! See you tomorrow! 👋${earlyNote}`;
         timeZone: 'Africa/Cairo'
       });
       message += `🏁 **Check-out:** ${checkOutStr}`;
-      if (isEarly) message += ' ⚠️ (Early)';
+      if (isEarly) {
+        message += ' ⚠️ (Early)';
+      }
       message += '\n';
       
       if (workingHours) {

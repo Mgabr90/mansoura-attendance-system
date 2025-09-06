@@ -1,6 +1,13 @@
+/* eslint-disable no-console */
+
 import { NextRequest, NextResponse } from 'next/server'
 import { getBot } from '@/lib/telegram-bot'
 import { prisma } from '@/lib/prisma'
+import type { Update } from 'telegraf/types'
+
+interface TelegramUpdate extends Update {
+  update_id: number
+}
 
 // Webhook endpoint for Telegram bot
 export async function POST(request: NextRequest) {
@@ -15,7 +22,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Parse the webhook update
-    const update = await request.json()
+    const update = await request.json() as TelegramUpdate
     
     // Log the webhook for debugging (remove in production)
     if (process.env.NODE_ENV === 'development') {
@@ -24,7 +31,7 @@ export async function POST(request: NextRequest) {
 
     // Get bot instance and handle the update
     const bot = getBot()
-    await bot.handleWebhook(update)
+    await bot.handleWebhook(update as Update)
 
     // Log server activity
     await prisma.serverActivity.create({
@@ -61,7 +68,7 @@ export async function POST(request: NextRequest) {
 }
 
 // Handle GET requests (for webhook setup verification)
-export async function GET() {
+export function GET() {
   return NextResponse.json({
     message: 'El Mansoura CIH Telegram Bot Webhook',
     status: 'active',

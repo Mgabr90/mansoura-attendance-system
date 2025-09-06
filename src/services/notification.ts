@@ -1,3 +1,5 @@
+/* eslint-disable no-console */
+
 /**
  * Notification Service - Simplified Version
  * Core notification functionality for the attendance system
@@ -10,17 +12,17 @@ import { MessageFormatter } from '@/utils/telegram-formatters'
 export class NotificationService {
   private bot = getBot()
 
-  async sendNotification(telegramId: string, message: string, keyboard?: any): Promise<{ success: boolean; error?: string }> {
+  async sendNotification(telegramId: string, message: string, keyboard?: unknown): Promise<{ success: boolean; error?: string }> {
     try {
       await this.bot.getBot().telegram.sendMessage(telegramId, message, {
         parse_mode: 'Markdown',
-        reply_markup: keyboard
+        reply_markup: keyboard as any
       })
       
       return { success: true }
     } catch (error) {
       console.error('Failed to send notification:', error)
-      return { success: false, error: error.message }
+      return { success: false, error: error instanceof Error ? error.message : String(error) }
     }
   }
 
@@ -60,7 +62,7 @@ export class NotificationService {
     }
   }
 
-  async sendLateAlert(employee: any, checkInTime: Date, minutesLate: number): Promise<void> {
+  async sendLateAlert(employee: { firstName: string; lastName?: string; username?: string; telegramId: string }, checkInTime: Date, minutesLate: number): Promise<void> {
     try {
       const admins = await prisma.admin.findMany({ where: { isActive: true } })
       const employeeInfo = {
