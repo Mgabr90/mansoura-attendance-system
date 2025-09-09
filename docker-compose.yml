@@ -1,0 +1,166 @@
+version: '3.8'
+
+services:
+  # PostgreSQL Database
+  postgres:
+    image: postgres:15-alpine
+    container_name: mansoura-attendance-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-mansoura_attendance}
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-mansoura123}
+      PGDATA: /var/lib/postgresql/data/pgdata
+    ports:
+      - "${DB_PORT:-5432}:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./scripts/init-db.sql:/docker-entrypoint-initdb.d/init.sql
+    networks:
+      - attendance-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-postgres} -d ${POSTGRES_DB:-mansoura_attendance}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    deploy:
+      resources:
+        limits:
+          cpus: '1.0'
+          memory: 1G
+        reservations:
+          cpus: '0.5'
+          memory: 512M
+
+  # Redis Cache (Optional - for session storage and caching)
+  redis:
+    image: redis:7-alpine
+    container_name: mansoura-attendance-redis
+    restart: unless-stopped
+    ports:
+      - "${REDIS_PORT:-6379}:6379"
+    volumes:
+      - redis_data:/data
+    networks:
+      - attendance-network
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 3
+      start_period: 10s
+    command: redis-server --appendonly yes --maxmemory 256mb --maxmemory-policy allkeys-lru
+
+  # Next.js Application with Telegram Bot
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: runner
+    container_name: mansoura-attendance-app
+    restart: unless-stopped
+    environment:
+      # Database
+      DATABASE_URL: postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-mansoura123}@postgres:5432/${POSTGRES_DB:-mansoura_attendance}
+      
+      # Application
+      NODE_ENV: ${NODE_ENV:-production}
+      PORT: ${PORT:-3000}
+      NEXTAUTH_URL: ${NEXTAUTH_URL:-http://localhost:3000}
+      NEXTAUTH_SECRET: ${NEXTAUTH_SECRET:-your_nextauth_secret_here}
+      
+      # Telegram Bot
+      TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN}
+      TELEGRAM_WEBHOOK_URL: ${TELEGRAM_WEBHOOK_URL:-http://localhost:3000/api/bot/webhook}
+      
+      # Office Location
+      OFFICE_LATITUDE: ${OFFICE_LATITUDE:-31.0417}
+      OFFICE_LONGITUDE: ${OFFICE_LONGITUDE:-31.3778}
+      OFFICE_RADIUS: ${OFFICE_RADIUS:-100}
+      OFFICE_ADDRESS: ${OFFICE_ADDRESS:-29R3+7Q El Mansoura 1}
+      
+      # Work Hours
+      DEFAULT_WORK_START: ${DEFAULT_WORK_START:-09:00}
+      DEFAULT_WORK_END: ${DEFAULT_WORK_END:-17:00}
+      
+      # Security
+      JWT_SECRET: ${JWT_SECRET:-your_jwt_secret_here}
+      
+      # Notifications
+      DAILY_REPORT_TIME: ${DAILY_REPORT_TIME:-20:00}
+      ENABLE_NOTIFICATIONS: ${ENABLE_NOTIFICATIONS:-true}
+      
+      # Redis (Optional)
+      REDIS_URL: redis://redis:6379
+      
+      # Admin Settings
+      DEFAULT_ADMIN_USERNAME: ${DEFAULT_ADMIN_USERNAME:-admin}
+      DEFAULT_ADMIN_PASSWORD: ${DEFAULT_ADMIN_PASSWORD:-mansoura2024}
+    ports:
+      - "${APP_PORT:-3000}:3000"
+    volumes:
+      - app_data:/app/data
+      - app_logs:/app/logs
+    networks:
+      - attendance-network
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3000/api/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    deploy:
+      resources:
+        limits:
+          cpus: '2.0'
+          memory: 2G
+        reservations:
+          cpus: '1.0'
+          memory: 1G
+
+  # Nginx Reverse Proxy
+  nginx:
+    image: nginx:alpine
+    container_name: mansoura-attendance-nginx
+    restart: unless-stopped
+    ports:
+      - "${HTTP_PORT:-80}:80"
+      - "${HTTPS_PORT:-443}:443"
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./nginx/conf.d:/etc/nginx/conf.d:ro
+      - ./ssl:/etc/nginx/ssl:ro
+      - nginx_logs:/var/log/nginx
+    networks:
+      - attendance-network
+    depends_on:
+      - app
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+
+networks:
+  attendance-network:
+    driver: bridge
+    name: mansoura-attendance-net
+
+volumes:
+  postgres_data:
+    name: mansoura-attendance-postgres-data
+  redis_data:
+    name: mansoura-attendance-redis-data
+  app_data:
+    name: mansoura-attendance-app-data
+  app_logs:
+    name: mansoura-attendance-app-logs
+  nginx_logs:
+    name: mansoura-attendance-nginx-logs

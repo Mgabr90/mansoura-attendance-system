@@ -1,0 +1,239 @@
+version: '3.8'
+
+# Production overrides for Mansoura CIH Telegram Attendance System
+# Usage: docker-compose -f docker-compose.yml -f docker-compose.prod.yml up -d
+
+services:
+  postgres:
+    # Production PostgreSQL configuration
+    environment:
+      POSTGRES_PASSWORD_FILE: /run/secrets/postgres_password
+    secrets:
+      - postgres_password
+    volumes:
+      - postgres_prod_data:/var/lib/postgresql/data
+      - ./backups:/backups
+    ports: [] # Remove port exposure for security
+    deploy:
+      resources:
+        limits:
+          cpus: '2.0'
+          memory: 4G
+        reservations:
+          cpus: '1.0'
+          memory: 2G
+      restart_policy:
+        condition: on-failure
+        delay: 5s
+        max_attempts: 3
+        window: 120s
+
+  redis:
+    # Production Redis configuration
+    environment:
+      REDIS_PASSWORD_FILE: /run/secrets/redis_password
+    secrets:
+      - redis_password
+    volumes:
+      - redis_prod_data:/data
+    ports: [] # Remove port exposure for security
+    command: >
+      sh -c "
+        redis-server 
+        --requirepass $$(cat /run/secrets/redis_password)
+        --appendonly yes
+        --maxmemory 1g
+        --maxmemory-policy allkeys-lru
+        --save 900 1
+        --save 300 10
+        --save 60 10000
+      "
+    deploy:
+      resources:
+        limits:
+          cpus: '1.0'
+          memory: 1G
+
+  app:
+    # Production application configuration
+    environment:
+      # Override database URL to use secret
+      DATABASE_URL: postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-mansoura_attendance}?sslmode=require
+      
+      # Production environment
+      NODE_ENV: production
+      
+      # Security headers
+      NEXTAUTH_URL: ${NEXTAUTH_URL}
+      NEXTAUTH_SECRET_FILE: /run/secrets/nextauth_secret
+      JWT_SECRET_FILE: /run/secrets/jwt_secret
+      
+      # Telegram Bot
+      TELEGRAM_BOT_TOKEN_FILE: /run/secrets/telegram_bot_token
+      TELEGRAM_WEBHOOK_URL: ${TELEGRAM_WEBHOOK_URL}
+      
+      # Redis with auth
+      REDIS_URL: redis://:${REDIS_PASSWORD}@redis:6379
+      
+      # Performance optimizations
+      NEXT_TELEMETRY_DISABLED: 1
+      NODE_OPTIONS: --max-old-space-size=2048
+      
+      # Logging
+      LOG_LEVEL: ${LOG_LEVEL:-info}
+      LOG_FORMAT: json
+      
+      # Enable production features
+      ENABLE_ANALYTICS: true
+      ENABLE_ERROR_REPORTING: true
+    secrets:
+      - nextauth_secret
+      - jwt_secret
+      - telegram_bot_token
+    volumes:
+      - app_prod_data:/app/data
+      - app_prod_logs:/app/logs
+      - ./uploads:/app/uploads
+    ports: [] # Remove port exposure, use nginx
+    deploy:
+      replicas: 2 # Scale for production
+      resources:
+        limits:
+          cpus: '2.0'
+          memory: 3G
+        reservations:
+          cpus: '1.0'
+          memory: 1.5G
+      restart_policy:
+        condition: on-failure
+        delay: 5s
+        max_attempts: 3
+        window: 120s
+      update_config:
+        parallelism: 1
+        delay: 10s
+        failure_action: rollback
+        order: start-first
+
+  nginx:
+    # Production Nginx with SSL
+    volumes:
+      - ./nginx/nginx.prod.conf:/etc/nginx/nginx.conf:ro
+      - ./nginx/conf.d/prod:/etc/nginx/conf.d:ro
+      - ./ssl:/etc/nginx/ssl:ro
+      - ./nginx/dhparam.pem:/etc/nginx/dhparam.pem:ro
+      - nginx_prod_logs:/var/log/nginx
+      - /etc/letsencrypt:/etc/letsencrypt:ro
+    environment:
+      DOMAIN: ${DOMAIN}
+    deploy:
+      resources:
+        limits:
+          cpus: '1.0'
+          memory: 512M
+        reservations:
+          cpus: '0.5'
+          memory: 256M
+      restart_policy:
+        condition: on-failure
+
+  # Add monitoring services for production
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: mansoura-attendance-prometheus
+    restart: unless-stopped
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./monitoring/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus_data:/prometheus
+    networks:
+      - attendance-network
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--web.console.libraries=/etc/prometheus/console_libraries'
+      - '--web.console.templates=/etc/prometheus/consoles'
+      - '--storage.tsdb.retention.time=200h'
+      - '--web.enable-lifecycle'
+
+  grafana:
+    image: grafana/grafana:latest
+    container_name: mansoura-attendance-grafana
+    restart: unless-stopped
+    ports:
+      - "3001:3000"
+    environment:
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_PASSWORD:-admin123}
+      GF_USERS_ALLOW_SIGN_UP: false
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ./monitoring/grafana/dashboards:/etc/grafana/provisioning/dashboards:ro
+      - ./monitoring/grafana/datasources:/etc/grafana/provisioning/datasources:ro
+    networks:
+      - attendance-network
+    depends_on:
+      - prometheus
+
+  # Log aggregation
+  loki:
+    image: grafana/loki:latest
+    container_name: mansoura-attendance-loki
+    restart: unless-stopped
+    ports:
+      - "3100:3100"
+    volumes:
+      - ./monitoring/loki.yml:/etc/loki/local-config.yaml:ro
+      - loki_data:/loki
+    networks:
+      - attendance-network
+    command: -config.file=/etc/loki/local-config.yaml
+
+  # Backup service
+  backup:
+    image: postgres:15-alpine
+    container_name: mansoura-attendance-backup
+    restart: "no"
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_DB: ${POSTGRES_DB:-mansoura_attendance}
+      PGPASSWORD: ${POSTGRES_PASSWORD}
+    volumes:
+      - ./backups:/backups
+      - ./scripts/backup.sh:/backup.sh:ro
+    networks:
+      - attendance-network
+    depends_on:
+      - postgres
+    command: ["/bin/sh", "/backup.sh"]
+    profiles: ["backup"]
+
+secrets:
+  postgres_password:
+    external: true
+  redis_password:
+    external: true
+  nextauth_secret:
+    external: true
+  jwt_secret:
+    external: true
+  telegram_bot_token:
+    external: true
+
+volumes:
+  postgres_prod_data:
+    name: mansoura-attendance-postgres-prod-data
+  redis_prod_data:
+    name: mansoura-attendance-redis-prod-data
+  app_prod_data:
+    name: mansoura-attendance-app-prod-data
+  app_prod_logs:
+    name: mansoura-attendance-app-prod-logs
+  nginx_prod_logs:
+    name: mansoura-attendance-nginx-prod-logs
+  prometheus_data:
+    name: mansoura-attendance-prometheus-data
+  grafana_data:
+    name: mansoura-attendance-grafana-data
+  loki_data:
+    name: mansoura-attendance-loki-data
