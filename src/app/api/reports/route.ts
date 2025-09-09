@@ -9,15 +9,14 @@ import { prisma } from '@/lib/prisma'
 import type { Prisma } from '@prisma/client'
 
 export async function GET(request: NextRequest) {
-  return withAuth(request, async (session) => {
+  return withAuth(request, async (_session) => {
     try {
     const { searchParams } = new URL(request.url)
     const reportType = searchParams.get('type') || 'daily'
-    const startDate = searchParams.get('startDate') ? new Date(searchParams.get('startDate')!) : new Date()
-    const endDate = searchParams.get('endDate') ? new Date(searchParams.get('endDate')!) : new Date()
+    const startDate = new Date(searchParams.get('startDate') ?? new Date())
+    const endDate = new Date(searchParams.get('endDate') ?? new Date())
     const employeeId = searchParams.get('employeeId') || undefined
     const department = searchParams.get('department') || undefined
-    const format = searchParams.get('format') || 'json'
 
     // Set proper time boundaries
     startDate.setHours(0, 0, 0, 0)
@@ -36,10 +35,22 @@ export async function GET(request: NextRequest) {
         reportData = await generateMonthlyReport(startDate, endDate, department)
         break
       case 'employee':
-        reportData = await generateEmployeeReport(employeeId!, startDate, endDate)
+        if (!employeeId) {
+            return NextResponse.json({
+              success: false,
+              error: 'Employee ID is required for employee report'
+            }, { status: 400 })
+        }
+        reportData = await generateEmployeeReport(employeeId, startDate, endDate)
         break
       case 'department':
-        reportData = await generateDepartmentReport(department!, startDate, endDate)
+        if (!department) {
+            return NextResponse.json({
+              success: false,
+              error: 'Department is required for department report'
+            }, { status: 400 })
+        }
+        reportData = await generateDepartmentReport(department, startDate, endDate)
         break
       case 'summary':
         reportData = await generateSummaryReport(startDate, endDate)
@@ -126,7 +137,15 @@ async function generateDailyReport(startDate: Date, endDate: Date, employeeId?: 
   ])
 
   // Calculate daily statistics
-  const dailyStats: Record<string, any> = {}
+  const dailyStats: Record<string, {
+    date: Date;
+    total: number;
+    present: number;
+    late: number;
+    earlyDeparture: number;
+    averageHours: number;
+    records: (typeof records[0])[];
+  }> = {}
   
   records.forEach(record => {
     const dateKey = record.date.toISOString().split('T')[0]
@@ -143,18 +162,24 @@ async function generateDailyReport(startDate: Date, endDate: Date, employeeId?: 
     }
 
     dailyStats[dateKey].total++
-    if (record.checkInTime) dailyStats[dateKey].present++
-    if (record.isLate) dailyStats[dateKey].late++
-    if (record.isEarlyCheckout) dailyStats[dateKey].earlyDeparture++
+    if (record.checkInTime) {
+      dailyStats[dateKey].present++
+    }
+    if (record.isLate) {
+      dailyStats[dateKey].late++
+    }
+    if (record.isEarlyCheckout) {
+      dailyStats[dateKey].earlyDeparture++
+    }
     dailyStats[dateKey].records.push(record)
   })
 
   // Calculate average working hours for each day
   Object.keys(dailyStats).forEach(dateKey => {
     const dayRecords = dailyStats[dateKey].records
-    const completedRecords = dayRecords.filter((r: any) => r.workingHours !== null)
+    const completedRecords = dayRecords.filter((r) => r.workingHours !== null)
     dailyStats[dateKey].averageHours = completedRecords.length > 0
-      ? completedRecords.reduce((sum: number, r: any) => sum + (r.workingHours || 0), 0) / completedRecords.length
+      ? completedRecords.reduce((sum, r) => sum + (r.workingHours || 0), 0) / completedRecords.length
       : 0
   })
 
@@ -183,8 +208,13 @@ async function generateWeeklyReport(startDate: Date, endDate: Date, department?:
     _avg: { workingHours: true }
   })
 
-  // Group by weeks
-  const weeklyData: Record<string, any> = {}
+  const weeklyData: Record<string, {
+    weekStart: Date;
+    totalDays: number;
+    totalAttendance: number;
+    averageHours: number;
+    averageAttendancePerDay?: number;
+  }> = {}
   records.forEach(record => {
     const weekStart = getWeekStart(record.date)
     const weekKey = weekStart.toISOString().split('T')[0]
@@ -206,8 +236,10 @@ async function generateWeeklyReport(startDate: Date, endDate: Date, department?:
   // Calculate weekly averages
   Object.keys(weeklyData).forEach(weekKey => {
     const week = weeklyData[weekKey]
-    week.averageHours = week.averageHours / week.totalDays
-    week.averageAttendancePerDay = week.totalAttendance / week.totalDays
+    if (week.totalDays > 0) {
+        week.averageHours = week.averageHours / week.totalDays
+        week.averageAttendancePerDay = week.totalAttendance / week.totalDays
+    }
   })
 
   return {
@@ -239,7 +271,16 @@ async function generateMonthlyReport(startDate: Date, endDate: Date, department?
   ])
 
   // Group by months
-  const monthlyData: Record<string, any> = {}
+  const monthlyData: Record<string, {
+    month: string;
+    totalRecords: number;
+    presentDays: number;
+    lateDays: number;
+    earlyDepartures: number;
+    totalWorkingHours: number;
+    averageHours: number;
+    attendanceRate?: number;
+  }> = {}
   records.forEach(record => {
     const monthKey = `${record.date.getFullYear()}-${(record.date.getMonth() + 1).toString().padStart(2, '0')}`
     
@@ -256,17 +297,29 @@ async function generateMonthlyReport(startDate: Date, endDate: Date, department?
     }
     
     monthlyData[monthKey].totalRecords++
-    if (record.checkInTime) monthlyData[monthKey].presentDays++
-    if (record.isLate) monthlyData[monthKey].lateDays++
-    if (record.isEarlyCheckout) monthlyData[monthKey].earlyDepartures++
-    if (record.workingHours) monthlyData[monthKey].totalWorkingHours += record.workingHours
+    if (record.checkInTime) {
+      monthlyData[monthKey].presentDays++
+    }
+    if (record.isLate) {
+      monthlyData[monthKey].lateDays++
+    }
+    if (record.isEarlyCheckout) {
+      monthlyData[monthKey].earlyDepartures++
+    }
+    if (record.workingHours) {
+      monthlyData[monthKey].totalWorkingHours += record.workingHours
+    }
   })
 
   // Calculate monthly averages
   Object.keys(monthlyData).forEach(monthKey => {
     const month = monthlyData[monthKey]
-    month.averageHours = month.totalWorkingHours / month.presentDays || 0
-    month.attendanceRate = month.presentDays / month.totalRecords * 100
+    if (month.presentDays > 0) {
+        month.averageHours = month.totalWorkingHours / month.presentDays
+    }
+    if (month.totalRecords > 0) {
+        month.attendanceRate = month.presentDays / month.totalRecords * 100
+    }
   })
 
   return {
@@ -324,7 +377,7 @@ async function generateEmployeeReport(employeeId: string, startDate: Date, endDa
   }
 }
 
-async function generateDepartmentReport(department: string, startDate: Date, endDate: Date) {
+  async function generateDepartmentReport(department: string, startDate: Date, endDate: Date) {
   const [employees, records] = await Promise.all([
     prisma.employee.findMany({
       where: { department, isActive: true }
@@ -339,7 +392,13 @@ async function generateDepartmentReport(department: string, startDate: Date, end
   ])
 
   // Group by employees
-  const employeeStats: Record<string, any> = {}
+  const employeeStats: Record<string, {
+    employee: (typeof employees[0]);
+    totalDays: number;
+    presentDays: number;
+    lateDays: number;
+    totalHours: number;
+  }> = {}
   employees.forEach(emp => {
     employeeStats[emp.id] = {
       employee: emp,
@@ -353,9 +412,15 @@ async function generateDepartmentReport(department: string, startDate: Date, end
   records.forEach(record => {
     if (employeeStats[record.employeeId]) {
       employeeStats[record.employeeId].totalDays++
-      if (record.checkInTime) employeeStats[record.employeeId].presentDays++
-      if (record.isLate) employeeStats[record.employeeId].lateDays++
-      if (record.workingHours) employeeStats[record.employeeId].totalHours += record.workingHours
+      if (record.checkInTime) {
+        employeeStats[record.employeeId].presentDays++
+      }
+      if (record.isLate) {
+        employeeStats[record.employeeId].lateDays++
+      }
+      if (record.workingHours) {
+        employeeStats[record.employeeId].totalHours += record.workingHours
+      }
     }
   })
 
@@ -363,9 +428,9 @@ async function generateDepartmentReport(department: string, startDate: Date, end
     department,
     totalEmployees: employees.length,
     totalRecords: records.length,
-    averageAttendanceRate: Object.values(employeeStats).reduce((sum, emp) => 
+    averageAttendanceRate: employees.length > 0 ? Object.values(employeeStats).reduce((sum, emp) => 
       sum + (emp.totalDays > 0 ? (emp.presentDays / emp.totalDays) * 100 : 0), 0
-    ) / employees.length,
+    ) / employees.length : 0,
     totalLateInstances: records.filter(r => r.isLate).length
   }
 
@@ -417,7 +482,11 @@ async function generateLateArrivalsReport(startDate: Date, endDate: Date, depart
   })
 
   // Group by employee
-  const employeeLateStats: Record<string, any> = {}
+  const employeeLateStats: Record<string, {
+    employee: (typeof records[0])['employee'];
+    lateCount: number;
+    records: (typeof records[0])[];
+  }> = {}
   records.forEach(record => {
     if (!employeeLateStats[record.employeeId]) {
       employeeLateStats[record.employeeId] = {

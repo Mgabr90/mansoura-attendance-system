@@ -9,10 +9,10 @@ import { prisma } from '@/lib/prisma'
 // PUT /api/invitations/[token]/manage - Update invitation status
 export async function PUT(
   request: NextRequest,
-  { params }: { params: { token: string } }
+  { params }: { params: Promise<{ token: string }> }
 ) {
   try {
-    const { token } = params
+    const { token } = await params
     const body = await request.json()
 
     if (!token) {
@@ -118,10 +118,10 @@ export async function PUT(
 // DELETE /api/invitations/[token]/manage - Delete invitation
 export async function DELETE(
   request: NextRequest,
-  { params }: { params: { token: string } }
+  { params }: { params: Promise<{ token: string }> }
 ) {
   try {
-    const { token } = params
+    const { token } = await params
 
     if (!token) {
       return NextResponse.json(

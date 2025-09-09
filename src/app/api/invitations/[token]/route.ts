@@ -9,10 +9,10 @@ import { prisma } from '@/lib/prisma'
 // GET /api/invitations/[token] - Validate invitation token
 export async function GET(
   request: NextRequest,
-  { params }: { params: { token: string } }
+  { params }: { params: Promise<{ token: string }> }
 ) {
   try {
-    const { token } = params
+    const { token } = await params
 
     if (!token) {
       return NextResponse.json(
@@ -103,10 +103,10 @@ export async function GET(
 // POST /api/invitations/[token]/accept - Accept invitation and create employee
 export async function POST(
   request: NextRequest,
-  { params }: { params: { token: string } }
+  { params }: { params: Promise<{ token: string }> }
 ) {
   try {
-    const { token } = params
+    const { token } = await params
     const body = await request.json()
 
     if (!token) {

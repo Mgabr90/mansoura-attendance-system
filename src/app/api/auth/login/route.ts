@@ -1,10 +1,12 @@
-/**
- * Authentication API - Login Endpoint
- * Handles admin login with Telegram ID
- */
-
 import { NextRequest, NextResponse } from 'next/server'
 import AuthService from '@/lib/auth'
+import { Admin } from '@prisma/client'
+
+interface AuthResult {
+  success: boolean;
+  admin?: Admin | null;
+  error?: string;
+}
 
 export async function POST(request: NextRequest) {
   try {
@@ -19,9 +21,9 @@ export async function POST(request: NextRequest) {
     }
 
     // Authenticate admin
-    const authResult = await AuthService.authenticateAdmin(telegramId)
+    const authResult: AuthResult = await AuthService.authenticateAdmin(telegramId)
 
-    if (!authResult.success) {
+    if (!authResult.success || !authResult.admin) {
       return NextResponse.json(
         { success: false, error: authResult.error },
         { status: 401 }
@@ -35,11 +37,11 @@ export async function POST(request: NextRequest) {
     return AuthService.createAuthenticatedResponse({
       success: true,
       admin: {
-        id: authResult.admin?.id,
-        firstName: authResult.admin?.firstName,
-        lastName: authResult.admin?.lastName,
-        role: authResult.admin?.role,
-        telegramId: authResult.admin?.telegramId
+        id: authResult.admin.id,
+        firstName: authResult.admin.firstName,
+        lastName: authResult.admin.lastName,
+        role: authResult.admin.role,
+        telegramId: authResult.admin.telegramId
       },
       message: 'Login successful'
     }, token)

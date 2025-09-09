@@ -74,7 +74,7 @@ const AttendanceForm: React.FC<AttendanceFormProps> = ({
 
   return (
     <Card title={title} className="max-w-lg">
-      <form onSubmit={handleSubmit} className="space-y-6">
+      <form onSubmit={(e) => { void handleSubmit(e) }} className="space-y-6">
         <Select
           label="Employee"
           options={employeeOptions}

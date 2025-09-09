@@ -60,7 +60,9 @@ const AttendanceCard: React.FC<AttendanceCardProps> = ({
   }
 
   const formatTime = (time?: Date | string) => {
-    if (!time) return '--:--'
+    if (!time) {
+      return '--:--'
+    }
     const date = typeof time === 'string' ? new Date(time) : time
     return date.toLocaleTimeString('en-US', { 
       hour: '2-digit', 

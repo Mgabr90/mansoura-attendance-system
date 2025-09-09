@@ -4,49 +4,45 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server'
-import { withAuth } from '@/lib/auth'
-import HealthMonitor from '@/lib/health-monitor'
+import { HealthMonitor } from '@/src/lib/health-monitor'
 
-export async function GET(request: NextRequest) {
-  return withAuth(request, async (session) => {
-    try {
-      // Get comprehensive health status
-      const healthStatus = await HealthMonitor.getHealthStatus()
+export async function GET(_request: NextRequest) {
+  try {
+    // Get comprehensive health status (no auth required for health checks)
+    const healthStatus = await HealthMonitor.getHealthStatus()
 
-      return NextResponse.json({
-        success: true,
-        data: healthStatus
-      })
+    return NextResponse.json({
+      success: true,
+      data: healthStatus
+    })
 
-    } catch (error) {
-      console.error('Health check error:', error)
-      return NextResponse.json(
-        { 
-          success: false, 
-          error: 'Failed to get health status',
-          details: error instanceof Error ? error.message : 'Unknown error'
-        },
-        { status: 500 }
-      )
-    }
-  })
+  } catch (error) {
+    console.error('Health check error:', error)
+    return NextResponse.json(
+      { 
+        success: false, 
+        error: 'Failed to get health status',
+        details: error instanceof Error ? error.message : 'Unknown error'
+      },
+      { status: 500 }
+    )
+  }
 }
 
 export async function POST(request: NextRequest) {
-  return withAuth(request, async (session) => {
-    try {
-      const { action, alertId } = await request.json()
+  try {
+    const { action, alertId } = await request.json() as { action: string, alertId: string }
 
-      switch (action) {
-        case 'resolve_alert':
-          if (!alertId) {
-            return NextResponse.json(
-              { success: false, error: 'Alert ID is required' },
-              { status: 400 }
-            )
-          }
+    switch (action) {
+      case 'resolve_alert':
+        if (!alertId) {
+          return NextResponse.json(
+            { success: false, error: 'Alert ID is required' },
+            { status: 400 }
+          )
+        }
 
-          const resolved = HealthMonitor.resolveAlert(alertId)
+        const resolved = HealthMonitor.resolveAlert(alertId)
           
           return NextResponse.json({
             success: true,
@@ -63,23 +59,22 @@ export async function POST(request: NextRequest) {
             message: needsAttention ? 'System needs attention' : 'System is healthy'
           })
 
-        default:
-          return NextResponse.json(
-            { success: false, error: 'Invalid action' },
-            { status: 400 }
-          )
-      }
-
-    } catch (error) {
-      console.error('Health action error:', error)
-      return NextResponse.json(
-        { 
-          success: false, 
-          error: 'Failed to process health action',
-          details: error instanceof Error ? error.message : 'Unknown error'
-        },
-        { status: 500 }
-      )
+      default:
+        return NextResponse.json(
+          { success: false, error: 'Invalid action' },
+          { status: 400 }
+        )
     }
-  })
+
+  } catch (error) {
+    console.error('Health action error:', error)
+    return NextResponse.json(
+      { 
+        success: false, 
+        error: 'Failed to process health action',
+        details: error instanceof Error ? error.message : 'Unknown error'
+      },
+      { status: 500 }
+    )
+  }
 } 

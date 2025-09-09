@@ -96,7 +96,7 @@ export async function POST(request: NextRequest) {
         pdf: 'application/pdf'
       }
 
-      const contentType = contentTypes[format as string] || 'text/plain'
+      const contentType = contentTypes[format] || 'text/plain'
       
       // Generate filename if not provided
       const timestamp = new Date().toISOString().split('T')[0]
@@ -123,8 +123,8 @@ export async function POST(request: NextRequest) {
   })
 }
 
-export async function GET(request: NextRequest) {
-  return withAuth(request, async (_session) => {
+export async function GET(request: NextRequest): Promise<NextResponse> {
+  return withAuth(request, (_session) => {
     // Return available export options
     return NextResponse.json({
       success: true,

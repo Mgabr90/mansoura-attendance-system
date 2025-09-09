@@ -11,6 +11,12 @@ import { Suspense } from 'react'
 
 const inter = Inter({ subsets: ['latin'] })
 
+export const viewport = {
+  width: 'device-width',
+  initialScale: 1,
+  themeColor: '#2563eb'
+}
+
 export const metadata: Metadata = {
   title: {
     template: '%s | El Mansoura CIH Attendance System',
@@ -19,8 +25,6 @@ export const metadata: Metadata = {
   description: 'Modern, modular attendance management system with Telegram integration. Real-time location verification, automated reporting, and seamless employee experience.',
   keywords: ['attendance', 'telegram', 'management', 'employees', 'location', 'tracking'],
   authors: [{ name: 'El Mansoura CIH' }],
-  viewport: 'width=device-width, initial-scale=1',
-  themeColor: '#2563eb',
   robots: 'index, follow',
   openGraph: {
     type: 'website',
@@ -48,7 +52,7 @@ const GlobalLoading = () => (
 )
 
 // Error boundary component
-const ErrorFallback = ({ error }: { error: Error }) => (
+const _ErrorFallback = ({ error }: { error: Error }) => (
   <div className="min-h-screen flex items-center justify-center bg-red-50">
     <div className="text-center">
       <h2 className="text-xl font-semibold text-red-600 mb-2">

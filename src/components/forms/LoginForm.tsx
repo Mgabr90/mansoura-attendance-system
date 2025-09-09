@@ -46,7 +46,7 @@ const LoginForm: React.FC<LoginFormProps> = ({
           </p>
         </div>
 
-        <form onSubmit={handleSubmit} className="space-y-6">
+        <form onSubmit={(e) => { void handleSubmit(e) }} className="space-y-6">
           <Input
             label="Telegram ID"
             type="text"

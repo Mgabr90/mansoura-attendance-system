@@ -106,19 +106,19 @@ const ReportsPanel: React.FC<ReportsPanelProps> = ({ className = '' }) => {
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
             <div>
               <span className="text-gray-500">Today Present:</span>
-              <span className="ml-2 font-medium">45</span>
+              <span className="ml-2 font-medium">--</span>
             </div>
             <div>
               <span className="text-gray-500">Today Absent:</span>
-              <span className="ml-2 font-medium">3</span>
+              <span className="ml-2 font-medium">--</span>
             </div>
             <div>
               <span className="text-gray-500">Late Today:</span>
-              <span className="ml-2 font-medium">7</span>
+              <span className="ml-2 font-medium">--</span>
             </div>
             <div>
               <span className="text-gray-500">Attendance Rate:</span>
-              <span className="ml-2 font-medium text-green-600">93.8%</span>
+              <span className="ml-2 font-medium text-gray-400">-- %</span>
             </div>
           </div>
         </div>

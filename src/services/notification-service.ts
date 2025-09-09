@@ -570,7 +570,9 @@ export class NotificationService {
 
     absentees.slice(0, 10).forEach((emp, index) => {
       message += `${index + 1}. ${emp.firstName} ${emp.lastName || ''}\n`
-      if (emp.username) message += `   @${emp.username}\n`
+      if (emp.username) {
+        message += `   @${emp.username}\n`
+      }
     })
 
     if (absentees.length > 10) {

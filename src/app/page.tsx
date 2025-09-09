@@ -3,7 +3,7 @@
  * Refactored to use modular components and modern architecture
  */
 
-import { Suspense } from 'react'
+// import { Suspense } from 'react' // Unused
 import Link from 'next/link'
 import { Button, Card } from '@/components'
 import { 
@@ -17,8 +17,8 @@ import {
   CogIcon
 } from '@heroicons/react/24/outline'
 
-// Loading components for better UX
-const LoadingSpinner = () => (
+// Loading components for better UX (unused but kept for future use)
+const _LoadingSpinner = () => (
   <div className="flex items-center justify-center">
     <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-primary-600"></div>
   </div>
@@ -30,7 +30,7 @@ const FeatureCard = ({
   title, 
   description 
 }: {
-  icon: React.ComponentType<any>
+  icon: React.ComponentType<React.SVGProps<SVGSVGElement>>
   title: string
   description: string
 }) => (

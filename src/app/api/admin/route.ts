@@ -6,7 +6,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { getCronService } from '@/services/cron-service'
-import { getNotificationService } from '@/services/notification-service'
+import { getNotificationService, type NotificationOptions } from '@/services/notification-service'
 import type { Prisma, AdminRole } from '@prisma/client'
 
 // ============ GET /api/admin ============
@@ -605,10 +605,6 @@ interface NotificationData {
   options?: NotificationOptions
 }
 
-interface NotificationOptions {
-  keyboard?: unknown
-  silent?: boolean
-}
 
 interface BroadcastData {
   target: 'all' | 'employees' | 'admins'
@@ -637,7 +633,7 @@ interface AttendanceRecordData {
   date: Date | string
   checkInTime?: Date | string
   checkOutTime?: Date | string
-  status: string
+  status: 'INCOMPLETE' | 'COMPLETE' | 'ABSENT' | 'EXCUSED'
   isLate: boolean
 }
 
@@ -837,7 +833,7 @@ async function bulkImportEmployees(data: BulkImportData, admin: AdminUser) {
 async function manualAttendanceEntry(data: AttendanceRecordData, admin: AdminUser) {
   const record = await prisma.attendanceRecord.create({
     data: {
-      employeeId: data.employeeId,
+      employeeId: typeof data.employeeId === 'string' ? parseInt(data.employeeId, 10) : data.employeeId,
       date: new Date(data.date),
       checkInTime: data.checkInTime ? new Date(data.checkInTime) : null,
       checkOutTime: data.checkOutTime ? new Date(data.checkOutTime) : null,

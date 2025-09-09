@@ -5,7 +5,7 @@
 
 'use client'
 
-import React, { useState, useEffect } from 'react'
+import React, { useState } from 'react'
 import Card from '../ui/Card'
 import Button from '../ui/Button'
 import { useDashboard } from '@/src'
@@ -13,7 +13,7 @@ import { useAuth } from '@/src'
 import AttendanceChart from '../charts/AttendanceChart'
 import NotificationCenter from './NotificationCenter'
 
-interface DashboardStats {
+interface _DashboardStats {
   totalEmployees: number
   presentToday: number
   lateArrivals: number
