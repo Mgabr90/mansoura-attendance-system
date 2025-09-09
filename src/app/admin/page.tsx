@@ -10,6 +10,7 @@ import {
   ChartBarIcon,
   MapPinIcon
 } from '@heroicons/react/24/outline'
+import { Modal, EmployeeForm, AdminPanel } from '@/src'
 
 interface DashboardStats {
   totalEmployees: number
@@ -35,59 +36,155 @@ export default function AdminDashboard() {
   const [stats, setStats] = useState<DashboardStats | null>(null)
   const [recentActivity, setRecentActivity] = useState<RecentActivity[]>([])
   const [loading, setLoading] = useState(true)
+  const [showAddEmployee, setShowAddEmployee] = useState(false)
+  const [showDailyReport, setShowDailyReport] = useState(false)
+  const [showSettings, setShowSettings] = useState(false)
+
+  const fetchDashboardData = async () => {
+    try {
+      // Fetch real data from API
+      const [employeesRes, attendanceRes] = await Promise.all([
+        fetch('/api/employees'),
+        fetch('/api/attendance?period=today')
+      ])
+
+      const employees = employeesRes.ok ? await employeesRes.json() : { data: [] }
+      const attendance = attendanceRes.ok ? await attendanceRes.json() : { data: [] }
+
+      const employeeData = employees.data || []
+      const attendanceData = attendance.data || []
+
+      // Calculate real stats
+      const totalEmployees = employeeData.length
+      const activeToday = attendanceData.filter((record: any) => 
+        record.checkInTime || record.checkOutTime
+      ).length
+      const checkedIn = attendanceData.filter((record: any) => 
+        record.checkInTime && !record.checkOutTime
+      ).length
+      const lateArrivals = attendanceData.filter((record: any) => 
+        record.isLate === true
+      ).length
+
+      // Calculate working hours
+      const totalHours = attendanceData.reduce((total: number, record: any) => {
+        if (record.checkInTime && record.checkOutTime) {
+          const checkIn = new Date(record.checkInTime)
+          const checkOut = new Date(record.checkOutTime)
+          const hours = (checkOut.getTime() - checkIn.getTime()) / (1000 * 60 * 60)
+          return total + hours
+        }
+        return total
+      }, 0)
+
+      const realStats: DashboardStats = {
+        totalEmployees,
+        activeToday,
+        checkedIn,
+        lateArrivals,
+        workingHours: {
+          total: Math.round(totalHours),
+          average: totalEmployees > 0 ? Math.round((totalHours / totalEmployees) * 10) / 10 : 0
+        }
+      }
+
+      // Convert attendance data to recent activity
+      const recentActivityData: RecentActivity[] = attendanceData
+        .slice(0, 5) // Get most recent 5 records
+        .map((record: any, index: number) => ({
+          id: record.id?.toString() || index.toString(),
+          employeeName: record.employee?.firstName 
+            ? `${record.employee.firstName} ${record.employee.lastName || ''}`.trim()
+            : 'Unknown Employee',
+          action: record.checkOutTime ? 'CHECK_OUT' : 'CHECK_IN',
+          timestamp: (record.checkOutTime || record.checkInTime || new Date()).toString(),
+          location: 'El Mansoura CIH Office',
+          isLate: record.isLate || false
+        }))
+
+      setStats(realStats)
+      setRecentActivity(recentActivityData)
+    } catch (error) {
+      console.error('Error fetching dashboard data:', error)
+      // Set empty states on error
+      setStats({
+        totalEmployees: 0,
+        activeToday: 0,
+        checkedIn: 0,
+        lateArrivals: 0,
+        workingHours: { total: 0, average: 0 }
+      })
+      setRecentActivity([])
+    } finally {
+      setLoading(false)
+    }
+  }
 
   useEffect(() => {
-    const fetchDashboardData = () => {
-      try {
-        const mockStats: DashboardStats = {
-          totalEmployees: 45,
-          activeToday: 38,
-          checkedIn: 32,
-          lateArrivals: 3,
-          workingHours: {
-            total: 256,
-            average: 7.2
-          }
-        }
-
-        const mockActivity: RecentActivity[] = [
-          {
-            id: '1',
-            employeeName: 'Ahmed Mohamed',
-            action: 'CHECK_IN',
-            timestamp: new Date().toISOString(),
-            location: 'El Mansoura CIH Office',
-            isLate: false
-          },
-          {
-            id: '2',
-            employeeName: 'Fatma Ali',
-            action: 'CHECK_OUT',
-            timestamp: new Date(Date.now() - 1000 * 60 * 15).toISOString(),
-            location: 'El Mansoura CIH Office',
-            isLate: false
-          },
-          {
-            id: '3',
-            employeeName: 'Mohamed Hassan',
-            action: 'CHECK_IN',
-            timestamp: new Date(Date.now() - 1000 * 60 * 30).toISOString(),
-            location: 'El Mansoura CIH Office',
-            isLate: true
-          }
-        ]
-
-        setStats(mockStats)
-        setRecentActivity(mockActivity)
-      } catch (error) {
-        console.error('Error fetching dashboard data:', error)
-      } finally {
-        setLoading(false)
-      }
-    }
-
     void fetchDashboardData()
   }, [])
+
+  const handleAddEmployee = () => {
+    setShowAddEmployee(true)
+  }
+
+  const handleEmployeeSubmit = async (employeeData: any) => {
+    try {
+      // Always generate invitation (invitation-only workflow)
+      const invitationResponse = await fetch('/api/invitations', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          firstName: employeeData.name.split(' ')[0],
+          lastName: employeeData.name.split(' ').slice(1).join(' ') || undefined,
+          department: employeeData.department,
+          position: employeeData.position,
+          email: employeeData.email,
+          phoneNumber: employeeData.phone,
+          invitedBy: 'admin', // TODO: Get actual admin telegram ID
+          expiresInDays: 7
+        }),
+      })
+
+      if (invitationResponse.ok) {
+        const invitationData = await invitationResponse.json()
+        return invitationData.data // Return invitation data for the form to display
+      } else {
+        alert('Failed to generate invitation. Please try again.')
+        return null
+      }
+    } catch (error) {
+      console.error('Error handling employee invitation:', error)
+      alert('Error: ' + error.message)
+    }
+  }
+
+  const handleDailyReport = async () => {
+    try {
+      const response = await fetch('/api/reports?type=daily')
+      if (response.ok) {
+        const blob = await response.blob()
+        const url = window.URL.createObjectURL(blob)
+        const a = document.createElement('a')
+        a.style.display = 'none'
+        a.href = url
+        a.download = `daily_report_${new Date().toISOString().split('T')[0]}.csv`
+        document.body.appendChild(a)
+        a.click()
+        window.URL.revokeObjectURL(url)
+      } else {
+        console.error('Failed to download report')
+      }
+    } catch (error) {
+      console.error('Error downloading report:', error)
+    }
+  }
+
+  const handleSettings = () => {
+    setShowSettings(true)
+  }
 
   if (loading) {
     return (
@@ -306,13 +403,22 @@ export default function AdminDashboard() {
                 Quick Actions
               </h3>
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-                <button className="flex items-center justify-center px-4 py-3 border border-transparent text-sm font-medium rounded-md text-white bg-primary-600 hover:bg-primary-700">
+                <button 
+                  onClick={handleAddEmployee}
+                  className="flex items-center justify-center px-4 py-3 border border-transparent text-sm font-medium rounded-md text-white bg-primary-600 hover:bg-primary-700 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2 transition-colors"
+                >
                   Add Employee
                 </button>
-                <button className="flex items-center justify-center px-4 py-3 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50">
+                <button 
+                  onClick={() => void handleDailyReport()}
+                  className="flex items-center justify-center px-4 py-3 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2 transition-colors"
+                >
                   Daily Report
                 </button>
-                <button className="flex items-center justify-center px-4 py-3 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50">
+                <button 
+                  onClick={handleSettings}
+                  className="flex items-center justify-center px-4 py-3 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2 transition-colors"
+                >
                   System Settings
                 </button>
                 <Link
@@ -328,6 +434,29 @@ export default function AdminDashboard() {
           </div>
         </div>
       </main>
+
+      {/* Add Employee Modal */}
+      <Modal
+        isOpen={showAddEmployee}
+        onClose={() => setShowAddEmployee(false)}
+        title="Add New Employee"
+        size="lg"
+      >
+        <EmployeeForm
+          onSubmit={handleEmployeeSubmit}
+          onCancel={() => setShowAddEmployee(false)}
+        />
+      </Modal>
+
+      {/* System Settings Modal */}
+      <Modal
+        isOpen={showSettings}
+        onClose={() => setShowSettings(false)}
+        title="System Settings"
+        size="xl"
+      >
+        <AdminPanel />
+      </Modal>
     </div>
   )
 } 

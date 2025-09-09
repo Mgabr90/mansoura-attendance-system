@@ -107,68 +107,20 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   try {
-    const body = await request.json() as CreateEmployeeRequest
-    const { 
-      telegramId, 
-      firstName, 
-      lastName, 
-      phoneNumber, 
-      department, 
-      position,
-      isActive = true 
-    } = body
-
-    // Validate required fields
-    if (!telegramId || !firstName || !lastName) {
-      return NextResponse.json(
-        { error: 'Missing required fields: telegramId, firstName, lastName' },
-        { status: 400 }
-      )
-    }
-
-    // Check if employee already exists
-    const existingEmployee = await prisma.employee.findUnique({
-      where: { telegramId }
-    })
-
-    if (existingEmployee) {
-      return NextResponse.json(
-        { error: 'Employee with this Telegram ID already exists' },
-        { status: 409 }
-      )
-    }
-
-    // Create new employee
-    const employee = await prisma.employee.create({
-      data: {
-        telegramId,
-        firstName,
-        lastName,
-        phoneNumber,
-        department,
-        position,
-        isActive
-      }
-    })
-
-    // Log the activity
-    await prisma.serverActivity.create({
-      data: {
-        type: 'EMPLOYEE_CREATED',
-        message: `New employee created: ${firstName} ${lastName || ''} (${telegramId})`,
-        metadata: {
-          employeeId: employee.id,
-          ipAddress: request.headers.get('x-forwarded-for') || request.headers.get('x-real-ip') || 'unknown',
-          userAgent: request.headers.get('user-agent') || 'unknown'
-        }
-      }
-    })
-
-    return NextResponse.json({ employee, message: 'Employee created successfully' })
-  } catch (error) {
-    console.error('Error creating employee:', error)
+    // DEPRECATED: Direct employee creation is no longer supported
+    // All employees must be created through the invitation system
     return NextResponse.json(
-      { error: 'Failed to create employee' },
+      { 
+        error: 'Direct employee creation is deprecated. Use invitation system instead.',
+        message: 'Please create an employee invitation at /api/invitations',
+        deprecated: true
+      },
+      { status: 410 } // Gone
+    )
+  } catch (error) {
+    console.error('Error in deprecated employee creation:', error)
+    return NextResponse.json(
+      { error: 'Failed to process request' },
       { status: 500 }
     )
   }

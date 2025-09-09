@@ -11,11 +11,13 @@ import Button from '../ui/Button'
 import Input from '../ui/Input'
 import Select from '../ui/Select'
 import Badge from '../ui/Badge'
+import InvitationPanel from './InvitationPanel'
 import { 
   UserGroupIcon, 
   CogIcon, 
   ShieldCheckIcon,
-  ClockIcon
+  ClockIcon,
+  UsersIcon
 } from '@heroicons/react/24/outline'
 
 interface AdminPanelProps {
@@ -27,6 +29,7 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ className = '' }) => {
 
   const tabs = [
     { id: 'users', label: 'User Management', icon: UserGroupIcon },
+    { id: 'employees', label: 'Employee Management', icon: UsersIcon },
     { id: 'settings', label: 'System Settings', icon: CogIcon },
     { id: 'security', label: 'Security', icon: ShieldCheckIcon },
     { id: 'schedule', label: 'Work Schedule', icon: ClockIcon }
@@ -141,10 +144,18 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ className = '' }) => {
     </div>
   )
 
+  const renderEmployeeManagement = () => (
+    <div className="space-y-6">
+      <InvitationPanel />
+    </div>
+  )
+
   const renderContent = () => {
     switch (activeTab) {
       case 'users':
         return renderUserManagement()
+      case 'employees':
+        return renderEmployeeManagement()
       case 'settings':
         return renderSystemSettings()
       case 'security':

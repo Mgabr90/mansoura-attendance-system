@@ -1,4 +1,4 @@
-import { Telegraf, Context } from 'telegraf'
+import { Telegraf, Context, session } from 'telegraf'
 import { message } from 'telegraf/filters'
 import type { Update } from 'telegraf/types'
 import { prisma } from './prisma'
@@ -19,6 +19,10 @@ import type {
 interface BotContext extends Context {
   employee?: Employee
   state: any
+  session: {
+    invitationToken?: string
+    pendingInvitationData?: any
+  }
 }
 
 interface ConversationState {
@@ -43,6 +47,14 @@ class AttendanceBot {
   }
 
   private setupMiddleware() {
+    // Session middleware with default session
+    this.bot.use(session({ 
+      defaultSession: () => ({ 
+        invitationToken: undefined,
+        pendingInvitationData: undefined
+      }) 
+    }))
+
     // User authentication middleware
     this.bot.use(async (ctx, next) => {
       if (ctx.from) {
@@ -117,6 +129,13 @@ class AttendanceBot {
   private async handleStart(ctx: BotContext) {
     const user = ctx.from!
     const employee = ctx.employee
+    const startPayload = ctx.startPayload
+
+    // Check if this is an invitation deep link
+    if (startPayload && startPayload.startsWith('invite_')) {
+      await this.handleInvitationStart(ctx, startPayload)
+      return
+    }
 
     let message: string
     let keyboard: any
@@ -152,6 +171,80 @@ class AttendanceBot {
     await this.logServerActivity('command_start', `User ${user.id} started bot`)
   }
 
+  private async handleInvitationStart(ctx: BotContext, startPayload: string) {
+    const user = ctx.from!
+    const token = startPayload.replace('invite_', '')
+
+    try {
+      // Check if user is already registered
+      if (ctx.employee) {
+        await ctx.reply(
+          '✅ You are already registered!\n\n' +
+          'You can now use the attendance system. Use the location buttons below to check in/out.',
+          {
+            parse_mode: 'Markdown',
+            reply_markup: KeyboardBuilder.getLocationKeyboard(false) as any
+          }
+        )
+        return
+      }
+
+      // Validate invitation token via API
+      const response = await fetch(`${process.env.NEXTAUTH_URL || 'http://localhost:3000'}/api/invitations/${token}`)
+      
+      if (!response.ok) {
+        let errorMessage = '❌ **Invalid Invitation**\n\n'
+        
+        if (response.status === 404) {
+          errorMessage += 'This invitation link is not valid or has been cancelled.'
+        } else if (response.status === 410) {
+          errorMessage += 'This invitation has expired. Please contact your administrator for a new invitation.'
+        } else if (response.status === 409) {
+          errorMessage += 'This invitation has already been used.'
+        } else {
+          errorMessage += 'Unable to process invitation. Please try again later.'
+        }
+
+        await ctx.reply(errorMessage, { parse_mode: 'Markdown' })
+        return
+      }
+
+      const invitationData = await response.json()
+      const invitation = invitationData.data
+
+      // Store invitation data in session for registration
+      ctx.session.invitationToken = token
+      ctx.session.pendingInvitationData = invitation
+
+      // Show registration button with invitation context
+      const keyboard = KeyboardBuilder.getRegistrationKeyboard()
+      const welcomeMessage = 
+        '🎉 **Welcome to El Mansoura CIH!**\n\n' +
+        `👋 Hi ${user.first_name}! You've been invited to join our attendance system.\n\n` +
+        `👤 **Name:** ${invitation.firstName} ${invitation.lastName || ''}\n` +
+        `🏢 **Department:** ${invitation.department || 'N/A'}\n` +
+        `💼 **Position:** ${invitation.position || 'N/A'}\n\n` +
+        '📝 **Click the "📝 Register" button below to complete your registration.**\n\n' +
+        '✨ Your information is already prepared - just one click to get started!'
+
+      await ctx.reply(welcomeMessage, {
+        parse_mode: 'Markdown',
+        reply_markup: keyboard as any
+      })
+
+      // Log invitation link clicked
+      await this.logServerActivity('invitation_clicked', `User ${user.id} clicked invitation link ${token}`)
+
+    } catch (error) {
+      console.error('Error handling invitation:', error)
+      await ctx.reply(
+        '❌ **Error Processing Invitation**\n\n' +
+        'Something went wrong while processing your invitation. Please contact your administrator.',
+        { parse_mode: 'Markdown' }
+      )
+    }
+  }
+
   private async handleRegister(ctx: BotContext) {
     if (ctx.employee) {
       await ctx.reply('✅ You are already registered!')
@@ -178,32 +271,127 @@ class AttendanceBot {
     }
 
     try {
-      const employee = await prisma.employee.create({
-        data: {
-          telegramId: user.id.toString(),
-          firstName: contact.first_name,
-          lastName: contact.last_name || undefined,
-          username: user.username || undefined,
-          phoneNumber: contact.phone_number || undefined,
-        }
-      })
-
-      const keyboard = KeyboardBuilder.getLocationKeyboard(false)
-      await ctx.reply(
-        '✅ **Registration Successful!**\n\n' +
-        'Welcome to the Enhanced Attendance System!\n' +
-        'You can now use the location sharing buttons to check in and out.',
-        {
-          parse_mode: 'Markdown',
-          reply_markup: keyboard as any
-        }
-      )
-
-      await this.logServerActivity('employee_registered', `User ${user.id} registered`)
+      // Check if user has pending invitation
+      if (ctx.session.invitationToken && ctx.session.pendingInvitationData) {
+        await this.processInvitationRegistration(ctx, contact)
+      } else {
+        await this.processRegularRegistration(ctx, contact)
+      }
     } catch (error) {
       console.error('Registration error:', error)
       await ctx.reply('❌ Registration failed. Please try again later.')
     }
+  }
+
+  private async processInvitationRegistration(ctx: BotContext, contact: any) {
+    const user = ctx.from!
+    const token = ctx.session.invitationToken!
+    const invitationData = ctx.session.pendingInvitationData!
+
+    try {
+      // Accept the invitation with user's contact info
+      const acceptResponse = await fetch(`${process.env.NEXTAUTH_URL || 'http://localhost:3000'}/api/invitations/${token}/accept`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          telegramId: user.id.toString(),
+          username: user.username,
+          phoneNumber: contact.phone_number || invitationData.phoneNumber
+        }),
+      })
+
+      if (!acceptResponse.ok) {
+        const errorData = await acceptResponse.json()
+        
+        let errorMessage = '❌ **Registration Failed**\n\n'
+        if (acceptResponse.status === 409) {
+          errorMessage += 'An employee with your Telegram account already exists in the system.'
+        } else {
+          errorMessage += errorData.error || 'Unable to complete registration. Please contact your administrator.'
+        }
+
+        await ctx.reply(errorMessage, { parse_mode: 'Markdown' })
+        return
+      }
+
+      const acceptData = await acceptResponse.json()
+      const employee = acceptData.data.employee
+
+      // Clear session data
+      ctx.session.invitationToken = undefined
+      ctx.session.pendingInvitationData = undefined
+
+      // Registration successful!
+      const keyboard = KeyboardBuilder.getLocationKeyboard(false)
+      const successMessage = 
+        '🎉 **Welcome to El Mansoura CIH!**\n\n' +
+        `✅ Registration completed successfully!\n\n` +
+        `👤 **Name:** ${employee.firstName} ${employee.lastName || ''}\n` +
+        `🏢 **Department:** ${employee.department || 'N/A'}\n` +
+        `💼 **Position:** ${employee.position || 'N/A'}\n\n` +
+        '🎯 You can now use the attendance system!\n' +
+        'Use the location buttons below to check in and out.'
+
+      await ctx.reply(successMessage, {
+        parse_mode: 'Markdown',
+        reply_markup: keyboard as any
+      })
+
+      // Log successful invitation acceptance
+      await this.logServerActivity('invitation_accepted', `User ${user.id} accepted invitation ${token}`)
+
+      // Send notification to admin who sent the invitation
+      try {
+        const adminMessage = 
+          '✅ **Invitation Accepted**\n\n' +
+          `Employee **${employee.firstName} ${employee.lastName || ''}** has joined the system!\n` +
+          `🆔 Telegram ID: \`${employee.telegramId}\`\n` +
+          `📱 Username: @${user.username || 'N/A'}\n` +
+          `🏢 Department: ${employee.department || 'N/A'}\n` +
+          `💼 Position: ${employee.position || 'N/A'}`
+
+        await this.bot.telegram.sendMessage(invitationData.invitedBy, adminMessage, { parse_mode: 'Markdown' })
+      } catch (error) {
+        console.error('Failed to notify admin about invitation acceptance:', error)
+      }
+
+    } catch (error) {
+      console.error('Error processing invitation registration:', error)
+      await ctx.reply(
+        '❌ **Error Processing Invitation**\n\n' +
+        'Something went wrong while processing your invitation. Please contact your administrator.',
+        { parse_mode: 'Markdown' }
+      )
+    }
+  }
+
+  private async processRegularRegistration(ctx: BotContext, contact: any) {
+    const user = ctx.from!
+
+    const employee = await prisma.employee.create({
+      data: {
+        telegramId: user.id.toString(),
+        firstName: contact.first_name,
+        lastName: contact.last_name || undefined,
+        username: user.username || undefined,
+        phoneNumber: contact.phone_number || undefined,
+      }
+    })
+
+    const keyboard = KeyboardBuilder.getLocationKeyboard(false)
+    await ctx.reply(
+      '✅ **Registration Successful!**\n\n' +
+      'Welcome to the Enhanced Attendance System!\n' +
+      'You can now use the location sharing buttons to check in and out.',
+      {
+        parse_mode: 'Markdown',
+        reply_markup: keyboard as any
+      }
+    )
+
+    await this.logServerActivity('employee_registered', `User ${user.id} registered`)
   }
 
   private async handleStatus(ctx: BotContext) {

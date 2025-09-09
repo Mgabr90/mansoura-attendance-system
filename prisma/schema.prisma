@@ -23,6 +23,7 @@ model Employee {
   // Relations
   attendanceRecords AttendanceRecord[]
   exceptionalHours  ExceptionalHours[]
+  invitation        EmployeeInvitation?
 
   @@map("employees")
 }
@@ -139,6 +140,28 @@ model Settings {
   @@map("settings")
 }
 
+model EmployeeInvitation {
+  id            String   @id @default(cuid())
+  token         String   @unique
+  firstName     String   @map("first_name")
+  lastName      String?  @map("last_name")
+  department    String?
+  position      String?
+  email         String?
+  phoneNumber   String?  @map("phone_number")
+  invitedBy     String   @map("invited_by") // Admin telegram ID who sent invitation
+  invitedAt     DateTime @default(now()) @map("invited_at")
+  acceptedAt    DateTime? @map("accepted_at")
+  expiresAt     DateTime @map("expires_at") // Token expiration
+  status        InvitationStatus @default(PENDING)
+  employeeId    Int?     @unique @map("employee_id")
+  
+  // Relations
+  employee      Employee? @relation(fields: [employeeId], references: [id])
+
+  @@map("employee_invitations")
+}
+
 // Enums
 enum AttendanceStatus {
   INCOMPLETE  // Only check-in or check-out
@@ -158,4 +181,11 @@ enum SettingType {
   NUMBER
   BOOLEAN
   JSON
+}
+
+enum InvitationStatus {
+  PENDING
+  ACCEPTED
+  EXPIRED
+  CANCELLED
 } 
